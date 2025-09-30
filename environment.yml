@@ -1,4 +1,4 @@
-name: bakta_timings
+name: bakta-moduled
 channels:
   - conda-forge
   - bioconda

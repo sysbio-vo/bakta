@@ -36,10 +36,10 @@ import bakta.psc as psc
 import bakta.pscc as pscc
 import bakta.plot as plot
 
-# ---- ADDED CODE ----
 from contextlib import contextmanager
 from time import perf_counter
 
+# Timers Setup
 _step_timings = []
 
 @contextmanager
@@ -66,11 +66,9 @@ def record_skip(step_name: str, reason: str):
         "seconds": 0.0,
         "note": f"skipped: {reason}"
     })
-# ---- END ----
 
-def main():
-    args = bu.parse_arguments()  # parse arguments
 
+def setup_and_log(args: cfg.argparse.Namespace) -> logging.Logger:
     ############################################################################
     # Setup logging
     ############################################################################
@@ -132,7 +130,11 @@ def main():
         print(f"Bakta runs in DEBUG mode! Temporary data will not be destroyed at: {cfg.tmp_path}\n")
     else:
         atexit.register(bu.cleanup, log, cfg.tmp_path)  # register cleanup exit hook
+    
+    return log
 
+
+def import_genome(log: logging.Logger) -> tuple[dict, list, Path]:
     ############################################################################
     # Import genome
     # - parse sequences in Fasta file
@@ -140,7 +142,6 @@ def main():
     # - rename sequences
     ############################################################################
     print('Parse genome sequences...')
-    # ---- TIMER ----
     with time_block('import_genome'):
         try:
             sequences = fasta.import_sequences(cfg.genome_path)
@@ -149,6 +150,7 @@ def main():
         except:
             log.error('wrong genome file format!', exc_info=True)
             sys.exit('ERROR: wrong genome file format!')
+
         replicons = bu.parse_replicon_table(cfg.replicons) if cfg.replicons else None
         sequences, complete_genome = bu.qc_sequences(sequences, replicons)
         print(f'\tfiltered & revised: {len(sequences)}')
@@ -186,107 +188,156 @@ def main():
         data['genome']['plasmid'] = cfg.plasmid
     print('\nStart annotation...')
 
+    return data, sequences, sequences_path
+
+
+def predict_trnas(data: dict, sequences_path: Path, log: logging.Logger):
     ############################################################################
     # tRNA prediction
     ############################################################################
     if(cfg.skip_trna):
         print('skip tRNA prediction...')
-        # ---- RECORD SKIP ----
         record_skip('trna_prediction', 'cfg.skip_trna=True')
+        return
 
-    else:
-        print('predict tRNAs...')
-        # ---- TIMER ----
-        with time_block('trna_prediction'):
-            log.debug('start tRNA prediction')
-            trnas = t_rna.predict_t_rnas(data, sequences_path)
-            data['features'].extend(trnas)
-            print(f"\tfound: {len(trnas)}")
+    print('predict tRNAs...')
+    with time_block('trna_prediction'):
+        log.debug('start tRNA prediction')
+        trnas = t_rna.predict_t_rnas(data, sequences_path)
+        data['features'].extend(trnas)
+        print(f"\tfound: {len(trnas)}")
 
+
+def predict_tmrnas(data: dict, sequences_path: Path, log: logging.Logger):
     ############################################################################
     # tmRNA prediction
     ############################################################################
     if(cfg.skip_tmrna):
         print('skip tmRNA prediction...')
-        # ---- RECORD SKIP ----
         record_skip('tmrna_prediction', 'cfg.skip_tmrna=True')
+        return
+    
+    print('predict tmRNAs...')
+    with time_block('tmrna_prediction'):
+        log.debug('start tmRNA prediction')
+        tmrnas = tm_rna.predict_tm_rnas(data, sequences_path)
+        data['features'].extend(tmrnas)
+        print(f"\tfound: {len(tmrnas)}")
 
-    else:
-        print('predict tmRNAs...')
-        # ---- TIMER ----
-        with time_block('tmrna_prediction'):
-            log.debug('start tmRNA prediction')
-            tmrnas = tm_rna.predict_tm_rnas(data, sequences_path)
-            data['features'].extend(tmrnas)
-            print(f"\tfound: {len(tmrnas)}")
 
+def predict_rrnas(data: dict, sequences_path: Path, log: logging.Logger):
     ############################################################################
     # rRNA prediction
     ############################################################################
     if(cfg.skip_rrna):
         print('skip rRNA prediction...')
-        # ---- RECORD SKIP ----
         record_skip('rrna_prediction', 'cfg.skip_rrna=True')
-    else:
-        print('predict rRNAs...')
-        # ---- TIMER ----
-        with time_block('rrna_prediction'):
-            log.debug('start rRNA prediction')
-            rrnas = r_rna.predict_r_rnas(data, sequences_path)
-            data['features'].extend(rrnas)
-            print(f"\tfound: {len(rrnas)}")
+        return
+    
+    print('predict rRNAs...')
+    with time_block('rrna_prediction'):
+        log.debug('start rRNA prediction')
+        rrnas = r_rna.predict_r_rnas(data, sequences_path)
+        data['features'].extend(rrnas)
+        print(f"\tfound: {len(rrnas)}")
 
+
+def predict_ncrnas(data: dict, sequences_path: Path, log: logging.Logger):
     ############################################################################
     # ncRNA gene prediction
     ############################################################################
     if(cfg.skip_ncrna):
         print('skip ncRNA prediction...')
-        # ---- RECORD SKIP ----
         record_skip('ncrna_prediction', 'cfg.skip_ncrna=True')
-    else:
-        print('predict ncRNAs...')
-        # ---- TIMER ----
-        with time_block('ncrna_prediction'):
-            log.debug('start ncRNA prediction')
-            ncrnas = nc_rna.predict_nc_rnas(data, sequences_path)
-            data['features'].extend(ncrnas)
-            print(f"\tfound: {len(ncrnas)}")
+        return
 
+    print('predict ncRNAs...')
+    with time_block('ncrna_prediction'):
+        log.debug('start ncRNA prediction')
+        ncrnas = nc_rna.predict_nc_rnas(data, sequences_path)
+        data['features'].extend(ncrnas)
+        print(f"\tfound: {len(ncrnas)}")
+
+
+def predict_ncrna_regions(data: dict, sequences_path: Path, log: logging.Logger):
     ############################################################################
     # ncRNA region prediction
     ############################################################################
     if(cfg.skip_ncrna_region):
         print('skip ncRNA region prediction...')
-        # ---- RECORD SKIP ----
         record_skip('ncrna_region_prediction', 'cfg.skip_ncrna_region=True')
-    else:
-        print('predict ncRNA regions...')
-        # ---- TIMER ----
-        with time_block('ncrna_region_prediction'):
-            log.debug('start ncRNA region prediction')
-            ncrna_regions = nc_rna_region.predict_nc_rna_regions(data, sequences_path)
-            data['features'].extend(ncrna_regions)
-            print(f"\tfound: {len(ncrna_regions)}")
+        return
+    
+    print('predict ncRNA regions...')
+    with time_block('ncrna_region_prediction'):
+        log.debug('start ncRNA region prediction')
+        ncrna_regions = nc_rna_region.predict_nc_rna_regions(data, sequences_path)
+        data['features'].extend(ncrna_regions)
+        print(f"\tfound: {len(ncrna_regions)}")
 
+
+def predict_crisprs(data: dict, sequences_path: Path, log: logging.Logger):
     ############################################################################
     # CRISPR prediction
     ############################################################################
     if(cfg.skip_crispr):
         print('skip CRISPR array prediction...')
-        # ---- RECORD SKIP ----
         record_skip('crispr_prediction', 'cfg.skip_crispr=True')
-    else:
-        print('predict CRISPR arrays...')
-        # ---- TIMER ----
-        with time_block('crispr_prediction'):
-            log.debug('start CRISPR prediction')
-            crisprs = crispr.predict_crispr(data, sequences_path)
-            data['features'].extend(crisprs)
-            print(f"\tfound: {len(crisprs)}")
+        return
+    
+    print('predict CRISPR arrays...')
+    with time_block('crispr_prediction'):
+        log.debug('start CRISPR prediction')
+        crisprs = crispr.predict_crispr(data, sequences_path)
+        data['features'].extend(crisprs)
+        print(f"\tfound: {len(crisprs)}")
 
+
+def predict_cdss(data: dict, log: logging.Logger) -> list:
     ############################################################################
     # CDS prediction
-    # - Prodigal prediction
+    ############################################################################
+    if(cfg.skip_cds):
+        print('skip CDS prediction...')
+        record_skip('cds_prediction', 'cfg.skip_cds=True')
+        return []
+        
+    print('predict CDSs...')
+    with time_block('cds_prediction'):
+        log.debug('predict CDS')
+        cdss = feat_cds.predict(data)
+        print(f"\tpredicted: {len(cdss)} ")
+
+        if(len(cdss) > 0):
+            log.debug('discard too-long CDS')
+            discarded_cdss = feat_cds.filter_length(cdss)
+            print(f'\tdiscarded length: {len(discarded_cdss)}')
+            cdss = [cds for cds in cdss if 'discarded' not in cds]
+
+        if(len(cdss) > 0):
+            log.debug('detect spurious CDS')
+            discarded_cdss = orf.detect_spurious(cdss)
+            print(f'\tdiscarded spurious: {len(discarded_cdss)}')
+            cdss = [cds for cds in cdss if 'discarded' not in cds]
+            
+        if(len(cdss) > 0):
+            log.debug('revise translational exceptions')
+            no_revised = feat_cds.revise_translational_exceptions(data, cdss)
+            print(f'\trevised translational exceptions: {no_revised}')
+            cdss = [cds for cds in cdss if 'discarded' not in cds]
+            
+        if(cfg.regions):
+            log.debug('import user-provided CDS regions')
+            imported_cdss = feat_cds.import_user_cdss(data, cfg.regions)
+            print(f'\timported CDS regions: {len(imported_cdss)}')
+            cdss.extend(imported_cdss)
+    
+    return cdss
+
+
+def annotate_cdss(data: dict, cdss: list, log: logging.Logger) -> list:
+    ############################################################################
+    # CDS annotation
     # - lookup UPS matches
     # - lookup IPS matches
     # - search PSC for unannotated CDSs
@@ -294,131 +345,104 @@ def main():
     # - lookup & combine annotations
     # - analyze hypotheticals
     ############################################################################
-    if(cfg.skip_cds):
-        print('skip CDS prediction...')
-        # ---- RECORD SKIP ----
-        record_skip('cds_prediction', 'cfg.skip_cds=True')
+    if cfg.skip_cds:
+        print('skip CDS annotation...')
         record_skip('cds_annotation', 'cfg.skip_cds=True')
-    else:
-        print('predict & annotate CDSs...')
+        return []
+    if not cdss:
+        print('skip CDS annotation (no CDS predicted)...')
+        record_skip('cds_annotation', 'no CDS predicted')
+        return []
 
-        # ---- CDS PREDICTION STEP ----
-        # ---- TIMER ----
-        with time_block('cds_prediction'):
-            log.debug('predict CDS')
-            cdss = feat_cds.predict(data)
-            print(f"\tpredicted: {len(cdss)} ")
+    print('annotate CDSs...')
+    with time_block('cds_annotation'):
+        if(cfg.db_info['type'] == 'full'):
+            log.debug('lookup CDS UPS/IPS')
+            cdss_ups, cdss_not_found_ups = ups.lookup(cdss)
+            cdss_ips, cdss_not_found_ips = ips.lookup(cdss_ups)
+            cdss_not_found = cdss_not_found_ups + cdss_not_found_ips
+            print(f'\tdetected IPSs: {len(cdss_ips)}')
+        else:
+            cdss_not_found = [*cdss]
+            print(f'\tskip UPS/IPS detection with light db version')
 
-            if(len(cdss) > 0):
-                log.debug('discard too-long CDS')
-                discarded_cdss = feat_cds.filter_length(cdss)
-                print(f'\tdiscarded length: {len(discarded_cdss)}')
-                cdss = [cds for cds in cdss if 'discarded' not in cds]
-
-            if(len(cdss) > 0):
-                log.debug('detect spurious CDS')
-                discarded_cdss = orf.detect_spurious(cdss)
-                print(f'\tdiscarded spurious: {len(discarded_cdss)}')
-                cdss = [cds for cds in cdss if 'discarded' not in cds]
+        if(len(cdss_not_found) > 0):
+            if(cfg.db_info['type'] == 'full'):
+                log.debug('search CDS PSC')
+                cdss_psc, cdss_pscc, cdss_not_found = psc.search(cdss_not_found)
+                print(f'\tfound PSCs: {len(cdss_psc)}')
+                print(f'\tfound PSCCs: {len(cdss_pscc)}')
+            else:
+                log.debug('search CDS PSCC')
+                cdss_pscc, cdss_not_found = pscc.search(cdss_not_found)
+                print(f'\tfound PSCCs: {len(cdss_pscc)}')
             
-            if(len(cdss) > 0):
-                log.debug('revise translational exceptions')
-                no_revised = feat_cds.revise_translational_exceptions(data, cdss)
-                print(f'\trevised translational exceptions: {no_revised}')
-                cdss = [cds for cds in cdss if 'discarded' not in cds]
-            
-            if(cfg.regions):
-                log.debug('import user-provided CDS regions')
-                imported_cdss = feat_cds.import_user_cdss(data, cfg.regions)
-                print(f'\timported CDS regions: {len(imported_cdss)}')
-                cdss.extend(imported_cdss)
+        print('\tlookup annotations...')
+        log.debug('lookup CDS PSCs')
+        psc.lookup(cdss)  # lookup PSC info
+        pscc.lookup(cdss)  # lookup PSCC info
 
-        # ---- ANNOTATION STEP ----
-        # ---- TIMER ----
-        with time_block('cds_annotation'):
-            if(len(cdss) > 0):
-                if(cfg.db_info['type'] == 'full'):
-                    log.debug('lookup CDS UPS/IPS')
-                    cdss_ups, cdss_not_found_ups = ups.lookup(cdss)
-                    cdss_ips, cdss_not_found_ips = ips.lookup(cdss_ups)
-                    cdss_not_found = cdss_not_found_ups + cdss_not_found_ips
-                    print(f'\tdetected IPSs: {len(cdss_ips)}')
-                else:
-                    cdss_not_found = [*cdss]
-                    print(f'\tskip UPS/IPS detection with light db version')
+        print('\tconduct expert systems...')  # conduct expert systems annotation
+        cds_aa_path = cfg.tmp_path.joinpath('cds.expert.faa')
+        orf.write_internal_faa(cdss, cds_aa_path)
+        log.debug('conduct expert system: amrfinder')
+        expert_amr_found = exp_amr.search(cdss, cds_aa_path)
+        print(f'\t\tamrfinder: {len(expert_amr_found)}')
+        log.debug('conduct expert system: aa seqs')        
+        diamond_db_path = cfg.db_path.joinpath('expert-protein-sequences.dmnd')
+        expert_aa_found = exp_aa_seq.search(cdss, cds_aa_path, 'expert_proteins', diamond_db_path)
+        print(f'\t\tprotein sequences: {len(expert_aa_found)}')
 
-                if(len(cdss_not_found) > 0):
-                    if(cfg.db_info['type'] == 'full'):
-                        log.debug('search CDS PSC')
-                        cdss_psc, cdss_pscc, cdss_not_found = psc.search(cdss_not_found)
-                        print(f'\tfound PSCs: {len(cdss_psc)}')
-                        print(f'\tfound PSCCs: {len(cdss_pscc)}')
-                    else:
-                        log.debug('search CDS PSCC')
-                        cdss_pscc, cdss_not_found = pscc.search(cdss_not_found)
-                        print(f'\tfound PSCCs: {len(cdss_pscc)}')
-                print('\tlookup annotations...')
-                log.debug('lookup CDS PSCs')
-                psc.lookup(cdss)  # lookup PSC info
-                pscc.lookup(cdss)  # lookup PSCC info
+        if(cfg.user_proteins):
+            log.debug('conduct expert system: user aa seqs')
+            user_aa_path = cfg.tmp_path.joinpath('user-proteins.faa')
+            exp_aa_seq.write_user_protein_sequences(user_aa_path)
+            user_aa_found = exp_aa_seq.search(cdss, cds_aa_path, 'user_proteins', user_aa_path)
+            print(f'\t\tuser protein sequences: {len(user_aa_found)}')
 
-                print('\tconduct expert systems...')  # conduct expert systems annotation
-                cds_aa_path = cfg.tmp_path.joinpath('cds.expert.faa')
-                orf.write_internal_faa(cdss, cds_aa_path)
-                log.debug('conduct expert system: amrfinder')
-                expert_amr_found = exp_amr.search(cdss, cds_aa_path)
-                print(f'\t\tamrfinder: {len(expert_amr_found)}')
-                log.debug('conduct expert system: aa seqs')
-                diamond_db_path = cfg.db_path.joinpath('expert-protein-sequences.dmnd')
-                expert_aa_found = exp_aa_seq.search(cdss, cds_aa_path, 'expert_proteins', diamond_db_path)
-                print(f'\t\tprotein sequences: {len(expert_aa_found)}')
+        if(cfg.user_hmms):
+            log.debug('conduct expert system: user HMM')
+            user_hmm_found = exp_aa_hmms.search(cdss, cfg.user_hmms)
+            print(f'\t\tuser HMM sequences: {len(user_hmm_found)}')
 
-                if(cfg.user_proteins):
-                    log.debug('conduct expert system: user aa seqs')
-                    user_aa_path = cfg.tmp_path.joinpath('user-proteins.faa')
-                    exp_aa_seq.write_user_protein_sequences(user_aa_path)
-                    user_aa_found = exp_aa_seq.search(cdss, cds_aa_path, 'user_proteins', user_aa_path)
-                    print(f'\t\tuser protein sequences: {len(user_aa_found)}')
+        print('\tcombine annotations and mark hypotheticals...')
+        log.debug('combine CDS annotations')
+        for cds in cdss:
+            anno.combine_annotation(cds)  # combine IPS & PSC annotations and mark hypotheticals
 
-                if(cfg.user_hmms):
-                    log.debug('conduct expert system: user HMM')
-                    user_hmm_found = exp_aa_hmms.search(cdss, cfg.user_hmms)
-                    print(f'\t\tuser HMM sequences: {len(user_hmm_found)}')
-
-                print('\tcombine annotations and mark hypotheticals...')
-                log.debug('combine CDS annotations')
-                for cds in cdss:
-                    anno.combine_annotation(cds)  # combine IPS & PSC annotations and mark hypotheticals
-
-                hypotheticals = [cds for cds in cdss if 'hypothetical' in cds and 'edge' not in cds and cds.get('start_type', 'Edge') != 'Edge']
-                if(len(hypotheticals) > 0  and  not cfg.skip_pseudo):
-                    if(cfg.db_info['type'] == 'full'):
-                        print('\tdetect pseudogenes...')
-                        log.debug('search pseudogene candidates')
-                        pseudo_candidates = feat_cds.predict_pseudo_candidates(hypotheticals)
-                        print(f'\t\tcandidates: {len(pseudo_candidates)}')
-                        pseudogenes = feat_cds.detect_pseudogenes(pseudo_candidates, cdss, data) if len(pseudo_candidates) > 0 else []
-                        psc.lookup(pseudogenes, pseudo=True)
-                        pscc.lookup(pseudogenes, pseudo=True)
-                        for pseudogene in pseudogenes:
-                            anno.combine_annotation(pseudogene)
-                        print(f'\t\tverified: {len(pseudogenes)}')
-                    else:
-                        print(f'\tskip pseudogene detection with light db version')
-                hypotheticals = [cds for cds in cdss if 'hypothetical' in cds]
-                if(len(hypotheticals) > 0):
-                    log.debug('analyze hypotheticals')
-                    print(f'\tanalyze hypothetical proteins: {len(hypotheticals)}')
-                    pfam_hits = feat_cds.predict_pfam(hypotheticals)
-                    print(f"\t\tdetected Pfam hits: {len(pfam_hits)} ")
-                    feat_cds.analyze_proteins(hypotheticals)
-                    print('\t\tcalculated proteins statistics')
+        hypotheticals = [cds for cds in cdss if 'hypothetical' in cds and 'edge' not in cds and cds.get('start_type', 'Edge') != 'Edge']
+        if(len(hypotheticals) > 0  and  not cfg.skip_pseudo):
+            if(cfg.db_info['type'] == 'full'):
+                print('\tdetect pseudogenes...')
+                log.debug('search pseudogene candidates')
+                pseudo_candidates = feat_cds.predict_pseudo_candidates(hypotheticals)
+                print(f'\t\tcandidates: {len(pseudo_candidates)}')
+                pseudogenes = feat_cds.detect_pseudogenes(pseudo_candidates, cdss, data) if len(pseudo_candidates) > 0 else []
+                psc.lookup(pseudogenes, pseudo=True)
+                pscc.lookup(pseudogenes, pseudo=True)
+                for pseudogene in pseudogenes:
+                    anno.combine_annotation(pseudogene)
+                print(f'\t\tverified: {len(pseudogenes)}')
+            else:
+                print(f'\tskip pseudogene detection with light db version')
+        
+        hypotheticals = [cds for cds in cdss if 'hypothetical' in cds]
+        if(len(hypotheticals) > 0):
+            log.debug('analyze hypotheticals')
+            print(f'\tanalyze hypothetical proteins: {len(hypotheticals)}')
+            pfam_hits = feat_cds.predict_pfam(hypotheticals)
+            print(f"\t\tdetected Pfam hits: {len(pfam_hits)} ")
+            feat_cds.analyze_proteins(hypotheticals)
+            print('\t\tcalculated proteins statistics')
                 
-                print('\trevise special cases...')
-                feat_cds.revise_special_cases_annotated(data, cdss)
+        print('\trevise special cases...')
+        feat_cds.revise_special_cases_annotated(data, cdss)
 
-        data['features'].extend(cdss)
+    data['features'].extend(cdss)
+    return cdss
 
+
+def predict_sorfs(data: dict, log: logging.Logger):
     ############################################################################
     # sORF prediction
     # - in-mem sORF extraction
@@ -429,62 +453,61 @@ def main():
     ############################################################################
     if(cfg.skip_sorf):
         print('skip sORF prediction...')
-        # ---- RECORD SKIP ----
         record_skip('sorf_prediction', 'cfg.skip_sorf=True')
+        return
+    
+    print('detect & annotate sORF...')
+    with time_block('sorf_prediction'):
+        log.debug('extract sORF')
+        sorfs = s_orf.extract(data)
+        print(f'\tdetected: {len(sorfs)}')
 
-    else:
-        print('detect & annotate sORF...')
-        # ---- TIMER ----
-        with time_block('sorf_prediction'):
-            log.debug('extract sORF')
-            sorfs = s_orf.extract(data)
-            print(f'\tdetected: {len(sorfs)}')
+        log.debug('apply sORF overlap filter')
+        sorfs, discarded_sorfs = s_orf.overlap_filter(data, sorfs)
+        print(f'\tdiscarded due to overlaps: {len(discarded_sorfs)}')
 
-            log.debug('apply sORF overlap filter')
-            sorfs, discarded_sorfs = s_orf.overlap_filter(data, sorfs)
-            print(f'\tdiscarded due to overlaps: {len(discarded_sorfs)}')
+        if(len(sorfs) > 0):
+            log.debug('detect spurious sORF')
+            discarded_sorfs = orf.detect_spurious(sorfs)
+            print(f'\tdiscarded spurious: {len(discarded_sorfs)}')
+            sorfs = [sorf for sorf in sorfs if 'discarded' not in sorf]
 
-            if(len(sorfs) > 0):
-                log.debug('detect spurious sORF')
-                discarded_sorfs = orf.detect_spurious(sorfs)
-                print(f'\tdiscarded spurious: {len(discarded_sorfs)}')
-                sorfs = [sorf for sorf in sorfs if 'discarded' not in sorf]
+        log.debug('lookup sORF UPS/IPS')
+        sorf_upss, sorfs_not_found = ups.lookup(sorfs)
+        sorf_ipss, tmp = ips.lookup(sorf_upss)
+        sorfs_not_found.extend(tmp)
+        print(f'\tdetected IPSs: {len(sorf_ipss)}')
 
-            log.debug('lookup sORF UPS/IPS')
-            sorf_upss, sorfs_not_found = ups.lookup(sorfs)
-            sorf_ipss, tmp = ips.lookup(sorf_upss)
-            sorfs_not_found.extend(tmp)
-            print(f'\tdetected IPSs: {len(sorf_ipss)}')
+        sorf_pscs_psccs = []
+        if(len(sorfs_not_found) > 0):
+            if(cfg.db_info['type'] == 'full'):
+                log.debug('search sORF PSC')
+                cdss_not_found_tmp, sorfs_not_found = s_orf.search_pscs(sorfs_not_found)
+                sorf_pscs_psccs.extend(cdss_not_found_tmp)
+                print(f'\tfound PSCs: {len(sorf_pscs_psccs)}')
+            else:
+                log.debug('search sORF PSCC')
+                sorf_psccs, sorfs_not_found = s_orf.search_psccs(sorfs_not_found)
+                sorf_pscs_psccs.extend(sorf_psccs)
+                print(f'\tfound PSCCs: {len(sorf_pscs_psccs)}')
 
-            sorf_pscs_psccs = []
-            if(len(sorfs_not_found) > 0):
-                if(cfg.db_info['type'] == 'full'):
-                    log.debug('search sORF PSC')
-                    cdss_not_found_tmp, sorfs_not_found = s_orf.search_pscs(sorfs_not_found)
-                    sorf_pscs_psccs.extend(cdss_not_found_tmp)
-                    print(f'\tfound PSCs: {len(sorf_pscs_psccs)}')
-                else:
-                    log.debug('search sORF PSCC')
-                    sorf_psccs, sorfs_not_found = s_orf.search_psccs(sorfs_not_found)
-                    sorf_pscs_psccs.extend(sorf_psccs)
-                    print(f'\tfound PSCCs: {len(sorf_pscs_psccs)}')
+        print("\tlookup annotations...")
+        log.debug('lookup sORF PSCs')
+        sorf_pscs_psccs.extend(sorf_ipss)
+        psc.lookup(sorf_pscs_psccs)  # lookup PSC info
+        log.debug('lookup sORF PSCCs')
+        pscc.lookup(sorf_pscs_psccs)  # lookup PSC info
+        print('\tfilter and combine annotations...')
+        log.debug('filter sORF by annotations')
+        sorfs_filtered = s_orf.annotation_filter(sorfs)
+        log.debug('combine sORF annotations')
+        for feat in sorfs_filtered:
+            anno.combine_annotation(feat)  # combine IPS and PSC annotations
+        data['features'].extend(sorfs_filtered)
+        print(f'\tfiltered sORFs: {len(sorfs_filtered)}')
 
 
-            print("\tlookup annotations...")
-            log.debug('lookup sORF PSCs')
-            sorf_pscs_psccs.extend(sorf_ipss)
-            psc.lookup(sorf_pscs_psccs)  # lookup PSC info
-            log.debug('lookup sORF PSCCs')
-            pscc.lookup(sorf_pscs_psccs)  # lookup PSC info
-            print('\tfilter and combine annotations...')
-            log.debug('filter sORF by annotations')
-            sorfs_filtered = s_orf.annotation_filter(sorfs)
-            log.debug('combine sORF annotations')
-            for feat in sorfs_filtered:
-                anno.combine_annotation(feat)  # combine IPS and PSC annotations
-            data['features'].extend(sorfs_filtered)
-            print(f'\tfiltered sORFs: {len(sorfs_filtered)}')
-
+def annotate_gaps(data: dict, log: logging.Logger):
     ############################################################################
     # gap annotation
     # - in-mem gap detection
@@ -492,59 +515,61 @@ def main():
     ############################################################################
     if(cfg.skip_gap):
         print('skip gap annotation...')
-        # ---- RECORD SKIP ----
         record_skip('gap_annotation', 'cfg.skip_gap=True')
-    else:
-        print('detect gaps...')
-        # ---- TIMER ----
-        with time_block('gap_annotation'):
-            log.debug('detect gaps')
-            assembly_gaps = gaps.detect_assembly_gaps(data)
-            data['features'].extend(assembly_gaps)
-            print(f'\tfound: {len(assembly_gaps)}')
+        return 
+    
+    print('detect gaps...')
+    with time_block('gap_annotation'):
+        log.debug('detect gaps')
+        assembly_gaps = gaps.detect_assembly_gaps(data)
+        data['features'].extend(assembly_gaps)
+        print(f'\tfound: {len(assembly_gaps)}')
 
+
+def predict_oris(data: dict, sequences_path: Path, log: logging.Logger):
     ############################################################################
     # oriC/T prediction
     ############################################################################
     if(cfg.skip_ori):
         print('skip oriC/T annotation...')
-        # ---- RECORD SKIP ----
         record_skip('ori_prediction', 'cfg.skip_ori=True')
-    else:
-        print('detect oriCs/oriVs...')
-        # ---- TIMER ----
-        with time_block('ori_prediction'):
-            log.debug('detect oriC/V')
-            oriCs = ori.predict_oris(data, sequences_path, bc.FEATURE_ORIC)
-            data['features'].extend(oriCs)
-            print(f'\tfound: {len(oriCs)}')
+        return
+    
+    print('detect oriCs/oriVs...')
+    with time_block('ori_prediction'):
+        log.debug('detect oriC/V')
+        oriCs = ori.predict_oris(data, sequences_path, bc.FEATURE_ORIC)
+        data['features'].extend(oriCs)
+        print(f'\tfound: {len(oriCs)}')
 
-            print('detect oriTs...')
-            log.debug('detect oriT')
-            oriTs = ori.predict_oris(data, sequences_path, bc.FEATURE_ORIT)
-            data['features'].extend(oriTs)
-            print(f'\tfound: {len(oriTs)}')
+        print('detect oriTs...')
+        log.debug('detect oriT')
+        oriTs = ori.predict_oris(data, sequences_path, bc.FEATURE_ORIT)
+        data['features'].extend(oriTs)
+        print(f'\tfound: {len(oriTs)}')
 
+
+def apply_overlap_filters(data: dict):
     ############################################################################
     # Filter overlapping features
     ############################################################################
     if(cfg.skip_filter):
         print('skip feature overlap filters...')
-        # ---- RECORD SKIP ----
         record_skip('overlap_filters', 'cfg.skip_filter=True')
-    else:
-        print('apply feature overlap filters...')
-        # ---- TIMER ----
-        with time_block('overlap_filters'):
-            anno.detect_feature_overlaps(data)
+        return
+    
+    print('apply feature overlap filters...')
+    with time_block('overlap_filters'):
+        anno.detect_feature_overlaps(data)
 
+
+def create_annotation(data: dict, sequences: list, log: logging.Logger) -> tuple[list, dict]:
     ############################################################################
     # Create annotations
     # - filter features based on precedence and overlaps
     # - sort features
     # - create locus tags for features
     ############################################################################
-    # ---- TIMER ----
     with time_block('select_features_locus_tags'):
         print('select features and create locus tags...')
         log.debug('start feature selection and creation of locus tags')
@@ -563,12 +588,12 @@ def main():
             seq_features.sort(key=lambda k: k['start'])
             features.extend(seq_features)
         data['features'] = features  # overwrite feature list by final sorted feature list
-        log.info('selected features=%i', len(features))
+        logging.getLogger('MAIN').info('selected features=%i', len(features))
         print(f'\tselected: {len(features)}')
 
         # use user provided locus tag if not None/non-empty or generate a sequence based locus prefix
         locus_tag_prefix = cfg.locus_tag if cfg.locus_tag else bu.create_locus_tag_prefix(sequences)
-        log.info('locus tag prefix=%s', locus_tag_prefix)
+        logging.getLogger('MAIN').info('locus tag prefix=%s', locus_tag_prefix)
         locus_tag_nr = cfg.locus_tag_increment
         for feature in features:
             locus_tag = f'{locus_tag_prefix}_{locus_tag_nr:0{len(str(cfg.locus_tag_increment*len(features)))+1}}'
@@ -576,16 +601,21 @@ def main():
                 feature['locus'] = locus_tag
                 locus_tag_nr += cfg.locus_tag_increment
 
+    return features, features_by_sequence
+
+
+def improve_annotations(features: list):
     ############################################################################
     # Improve annotations
     # - select CDS/sORF gene symbols based on adjacent genes
     ############################################################################
-    # ---- TIMER ----
     with time_block('improve_annotations'):
         print('improve annotations...')
         genes_with_improved_symbols = anno.select_gene_symbols([feature for feature in features if feature['type'] in [bc.FEATURE_CDS, bc.FEATURE_SORF]])
         print(f'\trevised gene symbols: {len(genes_with_improved_symbols)}')
 
+
+def print_summary(data: dict, features: list, cdss: list):
     ############################################################################
     # Print summary
     # - genome stats
@@ -616,6 +646,8 @@ def main():
     print(f"\toriCs/oriVs: {len([feat for feat in features if (feat['type'] == bc.FEATURE_ORIC or feat['type'] == bc.FEATURE_ORIV)])}")
     print(f"\toriTs: {len([feat for feat in features if feat['type'] == bc.FEATURE_ORIT])}")
 
+
+def write_outputs(data: dict, features: list, features_by_sequence: dict, cdss: list):
     ############################################################################
     # Write output files
     # - measure runtime
@@ -623,7 +655,6 @@ def main():
     # - write comprehensive annotation results as JSON
     # - remove temp directory
     ############################################################################
-    # ---- TIMER ----
     with time_block('write_outputs'):
         cfg.run_end = datetime.now()  # measure runtime
 
@@ -673,8 +704,7 @@ def main():
             faa_path = cfg.output_path.joinpath(f'{cfg.prefix}.hypotheticals.faa')
             fasta.write_faa(hypotheticals, faa_path)
 
-        # ---- ADDED CODE ----
-        # calc & store runtime
+        # calculate & store runtime
         run_duration = (cfg.run_end - cfg.run_start).total_seconds()
         data['run'] = {
             'start': cfg.run_start.strftime('%Y-%m-%d %H:%M:%S'),
@@ -699,7 +729,6 @@ def main():
             ss = int(r['seconds'] % 60)
             note = f" ({r['note']})" if r['note'] else ""
             print(f"\t{r['step']}: {mm:01}:{ss:02}{note}")
-        # ---- END ----
 
         print('\tmachine readable JSON...')
         json_path = cfg.output_path.joinpath(f'{cfg.prefix}.json')
@@ -741,5 +770,43 @@ def main():
     print(f'Annotation successfully finished in {int(run_duration / 60):01}:{int(run_duration % 60):02} [mm:ss].')
 
 
+def run_pipeline(args: cfg.argparse.Namespace):
+    log = setup_and_log(args)
+    cfg.run_start = datetime.now()
+
+    data, sequences, sequences_path = import_genome()
+
+    # rna coding sequences predictions
+    predict_trnas(data, sequences_path, log)
+    predict_tmrnas(data, sequences_path, log)
+    predict_rrnas(data, sequences_path, log)
+    predict_ncrnas(data, sequences_path, log)
+    predict_ncrna_regions(data, sequences_path, log)
+    predict_crisprs(data, sequences_path, log)
+
+    # CDS prediction & annotation
+    cdss = predict_cdss(data, log)
+    cdss = annotate_cdss(data, cdss, log)
+
+    # sORF + extras
+    predict_sorfs(data, log)
+    annotate_gaps(data, log)
+    predict_oris(data, sequences_path, log)
+
+    # filters & finalisation
+    apply_overlap_filters(data)
+    features, features_by_sequence = create_annotation(data, sequences, log)
+    improve_annotations(features)
+
+    # summary & outputs
+    print_summary(data, features, cdss)
+    write_outputs(data, features, features_by_sequence, cdss)
+
+
+def main():
+    args = bu.parse_arguments()  # parse arguments
+    run_pipeline(args)
+
+    
 if __name__ == '__main__':
     main()
