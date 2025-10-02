@@ -788,7 +788,7 @@ def write_cds_prediction_outputs(data: dict, sequences: list, cdss: list):
     # GFF3
     print('\tGFF3 (CDS only)...')
     gff3_path = cfg.output_path.joinpath(f'{cfg.prefix}.cds-only.gff3')
-    gff.write_features(data, features_by_sequence, gff3_path, cds_only=True)  # add cds_only param or ignore extra types
+    gff.write_features(data, features_by_sequence, gff3_path)  
 
     # FFN/FAA 
     print('\tCDS nucleotide sequences (FFN)...')
