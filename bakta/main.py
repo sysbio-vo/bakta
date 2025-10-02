@@ -771,6 +771,14 @@ def write_outputs(data: dict, features: list, features_by_sequence: dict, cdss: 
     print(f'Annotation successfully finished in {int(run_duration / 60):01}:{int(run_duration % 60):02} [mm:ss].')
 
 
+def _normalize_coords(c):
+    if 'start' not in c:
+        if 'begin' in c: c['start'] = c['begin']
+        elif 'from' in c: c['start'] = c['from']
+    if 'end' not in c:
+        if 'stop' in c:  c['end'] = c['stop']
+        elif 'to' in c:  c['end'] = c['to']
+
 def write_cds_prediction_outputs(data: dict, sequences: list, cdss: list):
     print(f'\nExport CDS-only prediction results to: {cfg.output_path}')
     
@@ -811,6 +819,9 @@ def write_cds_prediction_outputs(data: dict, sequences: list, cdss: list):
 
     # TSV
     print('\tTSV (CDS coordinates)...')
+    for cds in cdss:
+        _normalize_coords(cds)
+        
     tsv_path = cfg.output_path.joinpath(f'{cfg.prefix}.cds-only.tsv')
     with tsv_path.open('w') as fh:
         fh.write("sequence\tstart\tend\tstrand\tlength_nt\tlength_aa\n")
