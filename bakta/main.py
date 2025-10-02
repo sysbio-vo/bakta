@@ -124,6 +124,7 @@ def setup_and_log(args: cfg.argparse.Namespace) -> logging.Logger:
         if(cfg.skip_ori): print(f'\tskip oriC/V/T: {cfg.skip_ori}')
         if(cfg.skip_filter): print(f'\tskip feature overlap filters: {cfg.skip_filter}')
         if(cfg.skip_plot): print(f'\tskip plot: {cfg.skip_plot}')
+        if(cfg.cds_only): print(f'\tCDS prediction only: {cfg.cds_only}')
         print()
     
     if(cfg.debug):
@@ -770,11 +771,58 @@ def write_outputs(data: dict, features: list, features_by_sequence: dict, cdss: 
     print(f'Annotation successfully finished in {int(run_duration / 60):01}:{int(run_duration % 60):02} [mm:ss].')
 
 
+def write_cds_prediction_outputs(data: dict, sequences: list, cdss: list):
+    print(f'\nExport CDS-only prediction results to: {cfg.output_path}')
+    # Build features_by_sequence for GFF/TSV 
+    features_by_sequence = {seq['id']: [] for seq in sequences}
+    # assign a simple id/locus for CDSs 
+    feature_id = 1
+    feature_id_prefix = "CDS"  
+    for cds in cdss:
+        cds['id'] = f'{feature_id_prefix}_{feature_id}'
+        feature_id += 1
+        features_by_sequence[cds['sequence']].append(cds)
+    for seq_id in features_by_sequence:
+        features_by_sequence[seq_id].sort(key=lambda k: k['start'])
+
+    # GFF3
+    print('\tGFF3 (CDS only)...')
+    gff3_path = cfg.output_path.joinpath(f'{cfg.prefix}.cds-only.gff3')
+    gff.write_features(data, features_by_sequence, gff3_path, cds_only=True)  # add cds_only param or ignore extra types
+
+    # FFN/FAA 
+    print('\tCDS nucleotide sequences (FFN)...')
+    ffn_path = cfg.output_path.joinpath(f'{cfg.prefix}.cds-only.ffn')
+    fasta.write_ffn(cdss, ffn_path)
+
+    print('\tTranslated CDS sequences (FAA)...')
+    faa_path = cfg.output_path.joinpath(f'{cfg.prefix}.cds-only.faa')
+    fasta.write_faa(cdss, faa_path)
+
+    # TSV
+    print('\tTSV (CDS coordinates)...')
+    tsv_path = cfg.output_path.joinpath(f'{cfg.prefix}.cds-only.tsv')
+    with tsv_path.open('w') as fh:
+        fh.write("sequence\tstart\tend\tstrand\tlength_nt\tlength_aa\n")
+        for c in cdss:
+            ln_nt = c.get('length_nt') or (c['end'] - c['start'] + 1)
+            ln_aa = c.get('length_aa') or (len(c.get('aa', '')) if c.get('aa') else '')
+            fh.write(f"{c['sequence']}\t{c['start']}\t{c['end']}\t{c['strand']}\t{ln_nt}\t{ln_aa}\n")
+
+
 def run_pipeline(args: cfg.argparse.Namespace):
     log = setup_and_log(args)
     cfg.run_start = datetime.now()
 
-    data, sequences, sequences_path = import_genome()
+    data, sequences, sequences_path = import_genome(log)
+
+    # CDS-only mode
+    if getattr(cfg, "cds_only", False):
+        print('CDS-only mode: running Prodigal-based CDS prediction and writing CDS outputs...')
+        cdss = predict_cdss(data, log)
+        data['features'].extend(cdss)
+        write_cds_prediction_outputs(data, sequences, cdss)
+        return
 
     # rna coding sequences predictions
     predict_trnas(data, sequences_path, log)

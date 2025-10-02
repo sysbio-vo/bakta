@@ -74,6 +74,8 @@ skip_gap = None
 skip_ori = None
 skip_filter = None
 skip_plot = None
+# cds prediction only flag
+cds_only = False
 
 run_start = datetime.now()
 run_end = None
@@ -92,6 +94,11 @@ def setup(args):
     log.info('debug=%s', debug)
     if(debug):
         verbose = True
+
+    # cds prediction only flag
+    global cds_only
+    cds_only = getattr(args, "cds_only", False)
+    log.info('cds-only=%s', cds_only)
 
     # input / output path configurations
     global db_path, db_info, tmp_path, genome_path, min_sequence_length, prefix, output_path, force
@@ -296,6 +303,35 @@ def setup(args):
     skip_plot = args.skip_plot
     log.info('skip-plot=%s', skip_plot)
 
+
+    if cds_only and args.skip_cds:
+        sys.exit("ERROR: --cds-only conflicts with --skip-cds. Remove --skip-cds to run Prodigal CDS prediction")
+
+    # ensure only prodigal-based cds prediction runs
+    if cds_only:
+        # disable everything except cds prediction
+        skip_trna = True
+        skip_tmrna = True
+        skip_rrna = True
+        skip_ncrna = True
+        skip_ncrna_region = True
+        skip_crispr = True
+        skip_sorf = True
+        skip_gap = True
+        skip_ori = True
+        skip_filter = True
+        skip_plot = True
+        skip_pseudo = True
+        skip_cds = False
+
+        # nullify other annotation inputs
+        regions = None
+        user_proteins = None
+        user_hmms = None
+
+        log.info('cds-only active → overriding workflow flags: '
+                 'disable RNAs/sORFs/gaps/ori/filter/plot/pseudo; keep CDS prediction.')
+        
 
 def check_readability(file_name: str, file_Path: Path):
     if(not os.access(str(file_Path), os.R_OK)):
