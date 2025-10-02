@@ -810,7 +810,7 @@ def write_cds_prediction_outputs(data: dict, sequences: list, cdss: list):
             fh.write(f"{c['sequence']}\t{c['start']}\t{c['end']}\t{c['strand']}\t{ln_nt}\t{ln_aa}\n")
 
 
-def run_pipeline(args: cfg.argparse.Namespace):
+def run_pipeline(args):
     log = setup_and_log(args)
     cfg.run_start = datetime.now()
 
