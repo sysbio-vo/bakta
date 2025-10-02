@@ -68,7 +68,7 @@ def record_skip(step_name: str, reason: str):
     })
 
 
-def setup_and_log(args: cfg.argparse.Namespace) -> logging.Logger:
+def setup_and_log(args) -> logging.Logger:
     ############################################################################
     # Setup logging
     ############################################################################
