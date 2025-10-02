@@ -773,13 +773,23 @@ def write_outputs(data: dict, features: list, features_by_sequence: dict, cdss: 
 
 def write_cds_prediction_outputs(data: dict, sequences: list, cdss: list):
     print(f'\nExport CDS-only prediction results to: {cfg.output_path}')
-    # Build features_by_sequence for GFF/TSV 
-    features_by_sequence = {seq['id']: [] for seq in sequences}
-    # assign a simple id/locus for CDSs 
-    feature_id = 1
-    feature_id_prefix = "CDS"  
+    
+    # assign locus tags incrementally 
+    locus_tag_prefix = cfg.locus_tag if cfg.locus_tag else bu.create_locus_tag_prefix(sequences)
+    inc = cfg.locus_tag_increment or 1
+    pad = len(str(inc * max(1, len(cdss)))) + 1
+    locus_nr = inc
     for cds in cdss:
-        cds['id'] = f'{feature_id_prefix}_{feature_id}'
+        if 'locus' not in cds:
+            cds['locus'] = f"{locus_tag_prefix}_{locus_nr:0{pad}}"
+            locus_nr += inc
+    
+    # Build features_by_sequence with cds
+    features_by_sequence = {seq['id']: [] for seq in sequences}
+    # assign an id for CDSs 
+    feature_id = 1
+    for cds in cdss:
+        cds['id'] = f'CDS_{feature_id}'
         feature_id += 1
         features_by_sequence[cds['sequence']].append(cds)
     for seq_id in features_by_sequence:
