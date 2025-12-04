@@ -76,6 +76,8 @@ skip_filter = None
 skip_plot = None
 # cds prediction only flag
 cds_only = False
+# rna prediction only flag
+rna_only = False
 
 run_start = datetime.now()
 run_end = None
@@ -99,6 +101,11 @@ def setup(args):
     global cds_only
     cds_only = getattr(args, "cds_only", False)
     log.info('cds-only=%s', cds_only)
+
+    # rna prediction only flag
+    global rna_only
+    rna_only = getattr(args, "rna_only", False)
+    log.info('rna-only=%s', rna_only)
 
     # input / output path configurations
     global db_path, db_info, tmp_path, genome_path, min_sequence_length, prefix, output_path, force
@@ -306,6 +313,12 @@ def setup(args):
 
     if cds_only and args.skip_cds:
         sys.exit("ERROR: --cds-only conflicts with --skip-cds. Remove --skip-cds to run Prodigal CDS prediction")
+    
+    if rna_only and cds_only:
+        sys.exit("ERROR: --rna-only conflicts with --cds-only. Choose one mode.")
+
+    if rna_only and (args.skip_trna and args.skip_tmrna and args.skip_rrna and args.skip_ncrna and args.skip_ncrna_region and args.skip_crispr):
+        sys.exit("ERROR: --rna-only conflicts with skipping all RNA predictions. Remove skip flags to run RNA prediction.")
 
     # ensure only prodigal-based cds prediction runs
     if cds_only:
@@ -329,8 +342,27 @@ def setup(args):
         user_proteins = None
         user_hmms = None
 
-        log.info('cds-only active → overriding workflow flags: '
+        log.info('cds-only active -> overriding workflow flags: '
                  'disable RNAs/sORFs/gaps/ori/filter/plot/pseudo; keep CDS prediction.')
+
+    # ensure only RNA prediction runs
+    if rna_only:
+        # disable CDS, sORF, gaps, ori but keep all RNAs
+        skip_cds = True
+        skip_pseudo = True
+        skip_sorf = True
+        skip_gap = True
+        skip_ori = True
+        skip_plot = True
+
+        # nullify CDS-related annotation inputs
+        skip_filter = False 
+        regions = None
+        user_proteins = None
+        user_hmms = None
+
+        log.info('rna-only active -> overriding workflow flags: '
+                 'disable CDS/sORFs/gaps/ori/filter/plot/pseudo; keep RNA predictions.')
         
 
 def check_readability(file_name: str, file_Path: Path):
