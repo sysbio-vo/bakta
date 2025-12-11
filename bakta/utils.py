@@ -110,7 +110,8 @@ def parse_arguments():
     arg_group_workflow.add_argument('--skip-plot', action='store_true', dest='skip_plot', help='Skip generation of circular genome plots')
     # flag for cds prediction only
     arg_group_workflow.add_argument('--cds-only', action='store_true', dest='cds_only', help='Run CDS prediction only (Prodigal), write CDS-only outputs')
-
+    # flag for rna prediction only
+    arg_group_workflow.add_argument('--rna-only', action='store_true', dest='rna_only', help='Run RNA prediction only, write RNA-only outputs')
 
     arg_group_general = parser.add_argument_group('General')
     arg_group_general.add_argument('--help', '-h', action='help', help='Show this help message and exit')

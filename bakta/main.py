@@ -803,25 +803,22 @@ def write_cds_prediction_outputs(data: dict, sequences: list, cdss: list):
     for seq_id in features_by_sequence:
         features_by_sequence[seq_id].sort(key=lambda k: k['start'])
 
-    # GFF3
-    print('\tGFF3 (CDS only)...')
+    print('\tGFF3...')
     gff3_path = cfg.output_path.joinpath(f'{cfg.prefix}.cds-only.gff3')
     gff.write_features(data, features_by_sequence, gff3_path)  
-
-    # FFN/FAA 
-    print('\tCDS nucleotide sequences (FFN)...')
+ 
+    print('\tfeature nucleotide sequences...')
     ffn_path = cfg.output_path.joinpath(f'{cfg.prefix}.cds-only.ffn')
     fasta.write_ffn(cdss, ffn_path)
 
-    print('\tTranslated CDS sequences (FAA)...')
+    print('\ttranslated CDS sequences...')
     faa_path = cfg.output_path.joinpath(f'{cfg.prefix}.cds-only.faa')
     fasta.write_faa(cdss, faa_path)
 
-    # TSV
-    print('\tTSV (CDS coordinates)...')
+    print('\tTSV...')
     for cds in cdss:
-        _normalize_coords(cds)
-        
+        _normalize_coords(cds)   
+
     tsv_path = cfg.output_path.joinpath(f'{cfg.prefix}.cds-only.tsv')
     with tsv_path.open('w') as fh:
         fh.write("sequence\tstart\tend\tstrand\tlength_nt\tlength_aa\n")
@@ -829,6 +826,30 @@ def write_cds_prediction_outputs(data: dict, sequences: list, cdss: list):
             ln_nt = c.get('length_nt') or (c['end'] - c['start'] + 1)
             ln_aa = c.get('length_aa') or (len(c.get('aa', '')) if c.get('aa') else '')
             fh.write(f"{c['sequence']}\t{c['start']}\t{c['end']}\t{c['strand']}\t{ln_nt}\t{ln_aa}\n")
+
+
+def write_rna_only_outputs(data: dict, sequences: list, rna_features: list, features_by_sequence: dict):
+    print(f'\nExport RNA-only prediction results to: {cfg.output_path}')
+
+    print('\tGFF3...')
+    gff3_path = cfg.output_path.joinpath(f'{cfg.prefix}.gff3')
+    gff.write_features(data, features_by_sequence, gff3_path)
+
+    print('\tgenome sequences...')
+    fna_path = cfg.output_path.joinpath(f'{cfg.prefix}.fna')
+    fasta.export_sequences(data['sequences'], fna_path, description=True, wrap=True)
+    
+    print('\tfeature nucleotide sequences...')
+    ffn_path = cfg.output_path.joinpath(f'{cfg.prefix}.ffn')
+    fasta.write_ffn(rna_features, ffn_path)
+    
+    print('\tfeature inferences...')
+    tsv_path = cfg.output_path.joinpath(f'{cfg.prefix}.tsv')
+    tsv.write_features(data['sequences'], features_by_sequence, tsv_path)
+    
+    print('\tJSON...')
+    json_path = cfg.output_path.joinpath(f'{cfg.prefix}.json')
+    json.write_json(data, rna_features, json_path)
 
 
 def run_pipeline(args):
@@ -845,6 +866,23 @@ def run_pipeline(args):
         write_cds_prediction_outputs(data, sequences, cdss)
         return
 
+    # RNA-only mode
+    if getattr(cfg, "rna_only", False):
+        print('RNA-only mode: running RNA predictions (tRNA, tmRNA, rRNA, ncRNA, ncRNA regions, CRISPR)...')
+
+        predict_trnas(data, sequences_path, log)
+        predict_tmrnas(data, sequences_path, log)
+        predict_rrnas(data, sequences_path, log)
+        predict_ncrnas(data, sequences_path, log)
+        predict_ncrna_regions(data, sequences_path, log)
+        predict_crisprs(data, sequences_path, log)
+
+        bu.calc_genome_stats(data)
+        features, features_by_sequence = create_annotation(data, sequences, log)
+        write_rna_only_outputs(data, sequences, features, features_by_sequence)
+        return
+
+    # Standard full annotation workflow
     # rna coding sequences predictions
     predict_trnas(data, sequences_path, log)
     predict_tmrnas(data, sequences_path, log)
