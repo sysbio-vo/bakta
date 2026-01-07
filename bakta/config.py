@@ -319,7 +319,7 @@ def setup(args):
 
     if rna_only and (args.skip_trna and args.skip_tmrna and args.skip_rrna and args.skip_ncrna and args.skip_ncrna_region and args.skip_crispr):
         sys.exit("ERROR: --rna-only conflicts with skipping all RNA predictions. Remove skip flags to run RNA prediction.")
-
+   
     # ensure only prodigal-based cds prediction runs
     if cds_only:
         # disable everything except cds prediction
@@ -363,7 +363,6 @@ def setup(args):
 
         log.info('rna-only active -> overriding workflow flags: '
                  'disable CDS/sORFs/gaps/ori/filter/plot/pseudo; keep RNA predictions.')
-        
 
 def check_readability(file_name: str, file_Path: Path):
     if(not os.access(str(file_Path), os.R_OK)):
