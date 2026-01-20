@@ -302,6 +302,26 @@ def predict_cdss(data: dict, log: logging.Logger) -> list:
     return cdss
 
 
+def predict_pseudogenes_from_cdss(data: dict, cdss: list, log: logging.Logger) -> list:
+    hypotheticals = [cds for cds in cdss if 'hypothetical' in cds and 'edge' not in cds and cds.get('start_type', 'Edge') != 'Edge']
+    print(f'Found {len(hypotheticals)} hypothetical CDS')
+    if(len(hypotheticals) > 0  and  not cfg.skip_pseudo):
+        if(cfg.db_info['type'] == 'full'):
+            print('\tdetect pseudogenes...')
+            log.debug('search pseudogene candidates')
+            pseudo_candidates = feat_cds.predict_pseudo_candidates(hypotheticals)
+            print(f'\t\tcandidates: {len(pseudo_candidates)}')
+            pseudogenes = feat_cds.detect_pseudogenes(pseudo_candidates, cdss, data) if len(pseudo_candidates) > 0 else []
+            psc.lookup(pseudogenes, pseudo=True)
+            pscc.lookup(pseudogenes, pseudo=True)
+            for pseudogene in pseudogenes:
+                anno.combine_annotation(pseudogene)
+            print(f'\t\tverified: {len(pseudogenes)}')
+            return pseudogenes
+        else:
+            print(f'\tskip pseudogene detection with light db version')
+    return []
+
 def annotate_cdss(data: dict, cdss: list, log: logging.Logger) -> list:
     ############################################################################
     # CDS annotation
@@ -777,6 +797,22 @@ def run_pipeline(args):
     ############################################################################
     log = setup_and_log(args)
     cfg.run_start = datetime.now()
+
+
+    ############################################################################
+    # Pseudogene-only mode
+    ############################################################################
+    if getattr(cfg, "pseudogene_only", False):
+        print('Predicting psedogenes only')
+        data = pickle.read_pickle(cfg.cds_data)
+        cdss = [feat for feat in data['features'] if feat['type'] == bc.FEATURE_CDS]
+        pseudogenes = predict_pseudogenes_from_cdss(data, cdss, log)
+        # data['features'].extend(cdss)
+
+        # write_cds_prediction_outputs(data, sequences, cdss) # NOTE: writes to cfg.output_path
+        pickle_path = cfg.output_path.joinpath(f'{cfg.prefix}.with_pseudogenes.pkl')
+        pickle.write_pickle(data, pickle_path)
+        return
 
     data, sequences, sequences_path = import_genome(log)
 

@@ -23,5 +23,9 @@ def write_pickle(data: dict, pickle_path: Path):
     
     with pickle_path.open('wb') as fh:
         pickle.dump(data, fh, protocol=pickle.HIGHEST_PROTOCOL)
-    
+
+def read_pickle(pickle_path: str) -> dict:
+    with open(pickle_path, 'rb') as fh:
+        pickled_obj = pickle.load(fh)
+    return pickled_obj
 
