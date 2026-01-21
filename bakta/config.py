@@ -78,6 +78,10 @@ skip_plot = None
 cds_only = False
 # rna prediction only flag
 rna_only = False
+# sorf + extra flag
+sorf_extra = False
+cds_pickle = None
+rna_pickle = None
 
 run_start = datetime.now()
 run_end = None
@@ -106,6 +110,16 @@ def setup(args):
     global rna_only
     rna_only = getattr(args, "rna_only", False)
     log.info('rna-only=%s', rna_only)
+
+    # sorf + extra flag
+    global sorf_extra, cds_pickle, rna_pickle
+    sorf_extra = getattr(args, "sorf_extra", False)
+    log.info('sorf-extra=%s', sorf_extra)
+
+    cds_pickle = getattr(args, "cds_pickle", None)
+    rna_pickle = getattr(args, "rna_pickle", None)
+    log.info('cds-pickle=%s', cds_pickle)
+    log.info('rna-pickle=%s', rna_pickle)
 
     # input / output path configurations
     global db_path, db_info, tmp_path, genome_path, min_sequence_length, prefix, output_path, force
@@ -319,7 +333,7 @@ def setup(args):
 
     if rna_only and (args.skip_trna and args.skip_tmrna and args.skip_rrna and args.skip_ncrna and args.skip_ncrna_region and args.skip_crispr):
         sys.exit("ERROR: --rna-only conflicts with skipping all RNA predictions. Remove skip flags to run RNA prediction.")
-
+   
     # ensure only prodigal-based cds prediction runs
     if cds_only:
         # disable everything except cds prediction
@@ -363,7 +377,6 @@ def setup(args):
 
         log.info('rna-only active -> overriding workflow flags: '
                  'disable CDS/sORFs/gaps/ori/filter/plot/pseudo; keep RNA predictions.')
-        
 
 def check_readability(file_name: str, file_Path: Path):
     if(not os.access(str(file_Path), os.R_OK)):
@@ -503,3 +516,4 @@ def check_tmp_path(args: Namespace) -> Path:
         tmp_path = Path(tempfile.mkdtemp()).resolve()
     log.info('tmp-path=%s', tmp_path)
     return tmp_path
+    

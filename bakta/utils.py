@@ -112,6 +112,11 @@ def parse_arguments():
     arg_group_workflow.add_argument('--cds-only', action='store_true', dest='cds_only', help='Run CDS prediction only (Prodigal), write CDS-only outputs')
     # flag for rna prediction only
     arg_group_workflow.add_argument('--rna-only', action='store_true', dest='rna_only', help='Run RNA prediction only, write RNA-only outputs')
+    # flag for sorf + extra
+    arg_group_workflow.add_argument('--sorf-extra', action='store_true', dest='sorf_extra', help='Run sORF+gap+ori + finalisation starting from precomputed CDS+RNA pickle files')
+    arg_group_workflow.add_argument('--cds-pickle', action='store', default=None, dest='cds_pickle', help='Pickle containing annotated CDS features')
+    arg_group_workflow.add_argument('--rna-pickle', action='store', default=None, dest='rna_pickle', help='Pickle containing RNA features')
+
 
     arg_group_general = parser.add_argument_group('General')
     arg_group_general.add_argument('--help', '-h', action='help', help='Show this help message and exit')
@@ -260,6 +265,15 @@ def test_dependencies():
     
     if(cfg.skip_plot is not None and cfg.skip_plot is False):
         test_dependency(DEPENDENCY_PYCIRCLIZE)
+
+
+def normalize_coords(c):
+    if 'start' not in c:
+        if 'begin' in c: c['start'] = c['begin']
+        elif 'from' in c: c['start'] = c['from']
+    if 'end' not in c:
+        if 'stop' in c:  c['end'] = c['stop']
+        elif 'to' in c:  c['end'] = c['to']
 
 
 def create_locus_tag_prefix(sequences: Sequence[dict], length: int=6) -> str:
