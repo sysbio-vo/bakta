@@ -85,6 +85,8 @@ def main():
     cfg.verbose = True if cfg.debug else args.verbose
     log.info('verbose=%s', cfg.verbose)
 
+    cfg.translation_table = 11 # TODO: set from config
+
     # bu.test_dependencies() # TODO: determine required depdendencies for pseudogene prediction
     if(cfg.verbose):
         print(f'Bakta v{cfg.version}')
