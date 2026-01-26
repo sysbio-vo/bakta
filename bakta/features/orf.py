@@ -49,16 +49,22 @@ def get_orf_key(orf: dict) -> str:
     """Generate a standardized and unique ORF-like feature key for internal store/analyze/parse/retrieval cycles."""
     return f"{orf['aa_hexdigest']}-{orf['sequence']}-{orf['start']}-{orf['stop']}-{orf['strand']}-{orf.get('source', 'internal')}"
 
+def get_orf_key_bulk(orf: dict) -> str:
+    """Generate a standardized and unique ORF-like feature key for internal store/analyze/parse/retrieval cycles for bulk prediction.
+    Thus, the only stored information about each amino-acid sequence is the hexdigest and strand orientation"""
+    return f"{orf['aa_hexdigest']}"
 
-def get_orf_dictionary(orfs: Sequence[dict]) -> Dict[str, dict]:
+
+def get_orf_dictionary(orfs: Sequence[dict], bulk: bool = False) -> Dict[str, dict]:
     """create a standardized ORF-like feature dict for internal store/analyze/parse/retrieval cycles."""
-    return {get_orf_key(orf): orf for orf in orfs}
+    orf_key_func = get_orf_key_bulk if bulk else get_orf_key
+    return {orf_key_func(orf): orf for orf in orfs}
 
 
-def write_internal_faa(features: Sequence[dict], faa_path: Path):
+def write_internal_faa(features: Sequence[dict], faa_path: Path, bulk: bool = False):
     """Write aa sequences to internal temporary Fasta file."""
     log.info('write internal aa seqs: # seqs=%i, path=%s', len(features), faa_path)
+    orf_key_func = get_orf_key_bulk if bulk else get_orf_key
     with faa_path.open(mode='wt') as fh:
         for orf in features:
-            fh.write(f">{get_orf_key(orf)}\n{orf['aa']}\n")
-    
+            fh.write(f">{orf_key_func(orf)}\n{orf['aa']}\n")

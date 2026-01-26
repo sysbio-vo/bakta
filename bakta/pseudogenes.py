@@ -29,6 +29,170 @@ import bakta.pscc as pscc
 
 log = logging.getLogger('PSEUDOGENES')
 
+def main_bulk():
+    # parse options and arguments
+    parser = bu.init_parser(sub_command='_pseudo_bulk')
+    parser.add_argument('manifest', metavar='<input>', help='Manifest file with paths to pickled Bakta data objects with annotated CDSs to detect pseudogenes')
+    
+    arg_group_io = parser.add_argument_group('Input / Output')
+    arg_group_io.add_argument('--db', '-d', action='store', default=None, help='Database path (default = <bakta_path>/db). Can also be provided as BAKTA_DB environment variable.')
+    arg_group_io.add_argument('--output', '-o', action='store', default=os.getcwd(), help='Output directory (default = current working directory)')
+    arg_group_io.add_argument('--prefix', '-p', action='store', default=None, help='Prefix for output files')
+    arg_group_io.add_argument('--force', '-f', action='store_true', help='Force overwriting existing output folder')
+        
+    arg_group_general = parser.add_argument_group('General')
+    arg_group_general.add_argument('--help', '-h', action='help', help='Show this help message and exit')
+    arg_group_general.add_argument('--verbose', '-v', action='store_true', help='Print verbose information')
+    arg_group_general.add_argument('--debug', action='store_true', help='Run Bakta in debug mode. Temp data will not be removed.')
+    arg_group_general.add_argument('--threads', '-t', action='store', type=int, default=0, help='Number of threads to use (default = number of available CPUs)')
+    arg_group_general.add_argument('--tmp-dir', action='store', default=None, dest='tmp_dir', help='Location for temporary files (default = system dependent auto detection)')
+    arg_group_general.add_argument('--version', '-V', action='version', version=f'%(prog)s {cfg.version}')
+    args = parser.parse_args()
+
+    ############################################################################
+    # Setup logging
+    ############################################################################
+    cfg.prefix = args.prefix if args.prefix else Path(args.input).stem
+    output_path = cfg.check_output_path(args.output, args.force)
+    cfg.force = args.force
+    log.info('force=%s', args.force)
+    
+    bu.setup_logger(output_path, cfg.prefix, args)
+    log.info('prefix=%s', cfg.prefix)
+    log.info('output=%s', output_path)
+
+    try:
+        if(args.manifest == ''):
+            raise ValueError('Path to a manifest must be non-empty')
+        manifest_path = Path(args.manifest).resolve()
+    except:
+        log.error('provided input CDS data file not valid! path=%s', args.manifest)
+        sys.exit(f'ERROR: input CDS data file ({args.manifest}) not valid!')
+
+    log.info('manifest-path=%s', manifest_path)
+
+    cfg.check_db_path(args)
+    cfg.db_info = db.check(cfg.db_path)
+    cfg.check_tmp_path(args)
+    cfg.check_threads(args)
+    cfg.debug = args.debug
+    log.info('debug=%s', cfg.debug)
+    cfg.verbose = True if cfg.debug else args.verbose
+    log.info('verbose=%s', cfg.verbose)
+
+    cfg.translation_table = 11 # TODO: set from config
+
+    # bu.test_dependencies() # TODO: determine required depdendencies for pseudogene prediction
+    if(cfg.verbose):
+        print(f'Bakta v{cfg.version}')
+        print('Options and arguments:')
+        print(f'\tinput: {manifest_path}')
+        print(f"\tdb: {cfg.db_path}, version {cfg.db_info['major']}.{cfg.db_info['minor']}")
+        print(f'\toutput: {cfg.output_path}')
+        if(cfg.force): print(f'\tforce: {cfg.force}')
+        print(f'\ttmp directory: {cfg.tmp_path}')
+        print(f'\tprefix: {cfg.prefix}')
+        print(f'\t# threads: {cfg.threads}')
+
+    if(cfg.debug):
+        print(f"\nBakta runs in DEBUG mode! Temporary data will not be destroyed at: {cfg.tmp_path}")
+    else:
+        atexit.register(bu.cleanup, log, cfg.tmp_path)  # register cleanup exit hook
+
+    print('\nStart bulk pseudogene prediction...')
+    print('\nRead manifest file...')
+
+    with open(manifest_path, 'r') as handle:
+        bakta_pickles = handle.readlines()
+
+    # get all hypotheticals and save intermediate files to tmp dir
+    print('\Find pseudogene candidates...')
+    get_bulk_candidates(bakta_pickles_paths=bakta_pickles)
+
+    cfg.run_end = datetime.now()
+    run_duration = (cfg.run_end - cfg.run_start).total_seconds()
+    print(f'Pseudogene candidates search finished in {int(run_duration / 60):01}:{int(run_duration % 60):02} [mm:ss].')
+
+    # for bakta_pickle_path in bakta_pickles:
+    #     bakta_pickle_path = bakta_pickle_path.rstrip('\n')
+    #     sample_basename = os.path.basename(bakta_pickle_path)
+    #     sample_basename = os.path.splitext(sample_basename)[0]
+
+    #     print(f'\Extracting pseudogene candidates from sample {bakta_pickle_path}...')
+    #     data = pickle.read_pickle(bakta_pickle_path)
+
+    #     for feat in data['features']:
+    #         if feat['type'] != bc.FEATURE_CDS or 'hypothetical' not in feat or 'edge' in feat or cds.get('start_type', 'Edge') == 'Edge':
+    #             continue
+    #         nt_hash = pickle.feature_nt_to_hash(feat['nt'])
+    #         if nt_hash
+
+            
+
+    #     cdss = [feat for feat in data['features'] if feat['type'] == bc.FEATURE_CDS]
+    #     hypotheticals = [cds for cds in cdss if 'hypothetical' in cds and 'edge' not in cds and cds.get('start_type', 'Edge') != 'Edge']
+
+    #     print(f'Found {len(hypotheticals)} hypothetical CDS')
+
+
+
+
+    # data = pickle.read_pickle(bakta_pickle_path)
+    # cdss = [feat for feat in data['features'] if feat['type'] == bc.FEATURE_CDS]
+    # _ = predict_pseudogenes_from_cdss(data, cdss, log)
+    # output_pickle_path = cfg.output_path.joinpath(f'{sample_basename}_{cfg.prefix}.with_pseudogenes.pkl')
+    # print(f'\nExport pseudogene detection for sample {bakta_pickle_path} to: {output_pickle_path}')
+    # pickle.write_pickle(data, output_pickle_path)
+        
+
+from collections import defaultdict
+
+# TODO: pass already read Bakta dictionaries?
+def get_bulk_candidates(bakta_pickles_paths: list[str]):
+    """
+    Extract all pseudogene candidates from a set of samples and combined them into a single Bakta data object
+    """
+
+    unique_aa_seqs = set()
+    unique_hypothetical_features = []
+    seq_to_feature = defaultdict(list) # aa sequence will be used as key TODO: DEBUG: not sure if actually needed
+    sample_to_feature = defaultdict(list) # sample path will be used as key
+
+    # get all hypotheticals
+    for bakta_pickle_path in bakta_pickles_paths:
+        bakta_pickle_path = bakta_pickle_path.rstrip('\n')
+        sample_basename = os.path.basename(bakta_pickle_path)
+        sample_basename = os.path.splitext(sample_basename)[0]
+
+        print(f'\nExtracting pseudogene candidates from sample {bakta_pickle_path}...')
+        data = pickle.read_pickle(bakta_pickle_path)
+
+        for feat in data['features']:
+            if feat['type'] != bc.FEATURE_CDS or 'hypothetical' not in feat or 'edge' in feat or feat.get('start_type', 'Edge') == 'Edge':
+                continue
+            sample_to_feature[bakta_pickle_path].append(feat) # will be used to elongate sequences during pseudogene prediction
+            seq_to_feature[feat['aa_hexdigest']].append(feat) # will be modified in place during pseudogene prediction
+
+            # unique set of proteins that will be used for pseudogene candidate prediction
+            if feat['aa_hexdigest'] not in unique_aa_seqs:
+                unique_hypothetical_features.append(feat)
+                unique_aa_seqs.add(feat['aa_hexdigest'])
+
+    # return unique_hypothetical_features, seq_to_feature, sample_to_feature
+    
+    bulk_candidates = feat_cds.predict_pseudo_candidates_bulk(unique_hypothetical_features)
+
+    pickle.write_pickle(bulk_candidates, cfg.tmp_path.joinpath('cds.pseudo.candidates_bulk_list.pkl')) # DEBUG
+    pickle.write_pickle(seq_to_feature, cfg.tmp_path.joinpath('seq_to_feature.pkl')) # DEBUG
+    pickle.write_pickle(sample_to_feature, cfg.tmp_path.joinpath('sample_to_feature.pkl')) # DEBUG
+
+    # bulk_pseudogenes = feat_cds.detect_pseudogenes(bulk_candidates)
+            
+def predict_bulk_pseudogenes(bulk_candidates, seq_to_feature, sample_to_feature):
+    feat_cds.detect_pseudogenes_bulk(bulk_candidates)
+    pass
+
+
 
 def main():
     # parse options and arguments
