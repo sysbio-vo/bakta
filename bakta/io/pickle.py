@@ -1,4 +1,5 @@
 import pickle
+import hashlib
 import logging
 
 from collections import OrderedDict
@@ -29,3 +30,12 @@ def read_pickle(pickle_path: str) -> dict:
         pickled_obj = pickle.load(fh)
     return pickled_obj
 
+# TODO: delete if not needed
+def feature_to_hash(feature: dict) -> str:
+    feature_str = ':'.join([f'{k}_{str(feature[k])}' for k in sorted(feature.keys())])
+    feature_hex = hashlib.sha256(feature_str.encode('utf-8')).hexdigest()
+    return feature_hex
+
+def feature_nt_to_hash(feature: dict) -> str:
+    assert 'nt' in feature
+    return hashlib.sha256(feature['nt'].encode('utf-8')).hexdigest()

@@ -102,76 +102,68 @@ def main_bulk():
     print('\nStart bulk pseudogene prediction...')
     print('\nRead manifest file...')
 
+    sample_to_data = {}
     with open(manifest_path, 'r') as handle:
         bakta_pickles = handle.readlines()
+        for bakta_pickle_path in bakta_pickles:
+            bakta_pickle_path = bakta_pickle_path.rstrip('\n')
+            print(f'\nExtracting pseudogene candidates from sample {bakta_pickle_path}...')
+            data = pickle.read_pickle(bakta_pickle_path)
+            sample_to_data[bakta_pickle_path] = data
 
     # get all hypotheticals and save intermediate files to tmp dir
     print('\Find pseudogene candidates...')
-    get_bulk_candidates(bakta_pickles_paths=bakta_pickles)
+    bulk_candidates, seq_to_feature, sample_to_feature, seq_to_sample, candidate_to_sample_id = get_bulk_candidates(sample_to_data)
+
+    candidates_search_end_time = datetime.now()
+    candidates_detection_duration = (candidates_search_end_time - cfg.run_start).total_seconds()
+    print(f'Pseudogene candidates search finished in {int(candidates_detection_duration / 60):01}:{int(candidates_detection_duration % 60):02} [mm:ss].')
+
+    bulk_pseudogenes = predict_bulk_pseudogenes(bulk_candidates, seq_to_sample, sample_to_data, seq_to_feature, candidate_to_sample_id) if len(bulk_candidates) > 0 else []
 
     cfg.run_end = datetime.now()
-    run_duration = (cfg.run_end - cfg.run_start).total_seconds()
-    print(f'Pseudogene candidates search finished in {int(run_duration / 60):01}:{int(run_duration % 60):02} [mm:ss].')
+    pseudogene_predicition_duration = (cfg.run_end - candidates_search_end_time).total_seconds()
+    print(f'Pseudogene prediction finished in {int(pseudogene_predicition_duration / 60):01}:{int(pseudogene_predicition_duration % 60):02} [mm:ss].')
 
-    # for bakta_pickle_path in bakta_pickles:
-    #     bakta_pickle_path = bakta_pickle_path.rstrip('\n')
-    #     sample_basename = os.path.basename(bakta_pickle_path)
-    #     sample_basename = os.path.splitext(sample_basename)[0]
+    # write updated Bakta dictionaries
+    print(f'Saving updated Bakta CDS features')
+    for input_filepath, updated_data in sample_to_data.items():
+        filepath_basename = os.path.splitext(os.path.basename(input_filepath))[0]
+        output_pickle_path = cfg.output_path.joinpath(f'{cfg.prefix}.{filepath_basename}.with_pseudogenes.pkl')
+        print(f'\nExport pseudogene search results to: {output_pickle_path}')
+        pickle.write_pickle(updated_data, output_pickle_path)
 
-    #     print(f'\Extracting pseudogene candidates from sample {bakta_pickle_path}...')
-    #     data = pickle.read_pickle(bakta_pickle_path)
+    total_search_time = (cfg.run_end - cfg.run_start).total_seconds()
+    print(f'Total elapsed time: {int(total_search_time / 60):01}:{int(total_search_time % 60):02} [mm:ss].')
 
-    #     for feat in data['features']:
-    #         if feat['type'] != bc.FEATURE_CDS or 'hypothetical' not in feat or 'edge' in feat or cds.get('start_type', 'Edge') == 'Edge':
-    #             continue
-    #         nt_hash = pickle.feature_nt_to_hash(feat['nt'])
-    #         if nt_hash
-
-            
-
-    #     cdss = [feat for feat in data['features'] if feat['type'] == bc.FEATURE_CDS]
-    #     hypotheticals = [cds for cds in cdss if 'hypothetical' in cds and 'edge' not in cds and cds.get('start_type', 'Edge') != 'Edge']
-
-    #     print(f'Found {len(hypotheticals)} hypothetical CDS')
-
-
-
-
-    # data = pickle.read_pickle(bakta_pickle_path)
-    # cdss = [feat for feat in data['features'] if feat['type'] == bc.FEATURE_CDS]
-    # _ = predict_pseudogenes_from_cdss(data, cdss, log)
-    # output_pickle_path = cfg.output_path.joinpath(f'{sample_basename}_{cfg.prefix}.with_pseudogenes.pkl')
-    # print(f'\nExport pseudogene detection for sample {bakta_pickle_path} to: {output_pickle_path}')
-    # pickle.write_pickle(data, output_pickle_path)
         
 
 from collections import defaultdict
 
-# TODO: pass already read Bakta dictionaries?
-def get_bulk_candidates(bakta_pickles_paths: list[str]):
+def get_bulk_candidates(sample_to_data: dict[str, object]):
     """
     Extract all pseudogene candidates from a set of samples and combined them into a single Bakta data object
     """
 
     unique_aa_seqs = set()
     unique_hypothetical_features = []
-    seq_to_feature = defaultdict(list) # aa sequence will be used as key TODO: DEBUG: not sure if actually needed
-    sample_to_feature = defaultdict(list) # sample path will be used as key
+    seq_to_feature = defaultdict(list) # aa hexdist used as key
+    sample_to_feature = defaultdict(list) # sample path used as key
+
+    # this is sort of a many-to-many relation
+    seq_to_sample = defaultdict(list) # sequence hexdigest will be used as key and sample identifier (absolute path) as value
+    feature_to_sample_id = defaultdict(list) # NOTE: in theory is it possible to have identical features for different samples?
 
     # get all hypotheticals
-    for bakta_pickle_path in bakta_pickles_paths:
-        bakta_pickle_path = bakta_pickle_path.rstrip('\n')
-        sample_basename = os.path.basename(bakta_pickle_path)
-        sample_basename = os.path.splitext(sample_basename)[0]
-
-        print(f'\nExtracting pseudogene candidates from sample {bakta_pickle_path}...')
-        data = pickle.read_pickle(bakta_pickle_path)
+    for bakta_pickle_path, data in sample_to_data.items():
 
         for feat in data['features']:
             if feat['type'] != bc.FEATURE_CDS or 'hypothetical' not in feat or 'edge' in feat or feat.get('start_type', 'Edge') == 'Edge':
                 continue
             sample_to_feature[bakta_pickle_path].append(feat) # will be used to elongate sequences during pseudogene prediction
             seq_to_feature[feat['aa_hexdigest']].append(feat) # will be modified in place during pseudogene prediction
+            seq_to_sample[feat['aa_hexdigest']].append(bakta_pickle_path)
+            feature_to_sample_id[pickle.feature_to_hash(feat)].append(bakta_pickle_path)
 
             # unique set of proteins that will be used for pseudogene candidate prediction
             if feat['aa_hexdigest'] not in unique_aa_seqs:
@@ -180,19 +172,24 @@ def get_bulk_candidates(bakta_pickles_paths: list[str]):
 
     # return unique_hypothetical_features, seq_to_feature, sample_to_feature
     
-    bulk_candidates = feat_cds.predict_pseudo_candidates_bulk(unique_hypothetical_features)
+    bulk_candidates, candidate_to_sample_id = feat_cds.predict_pseudo_candidates_bulk(unique_hypothetical_features, feature_to_sample_id)
+    # bulk_candidates = []
 
     pickle.write_pickle(bulk_candidates, cfg.tmp_path.joinpath('cds.pseudo.candidates_bulk_list.pkl')) # DEBUG
+    pickle.write_pickle(candidate_to_sample_id, cfg.tmp_path.joinpath('cds.pseudo.candidate_to_sample_id.pkl')) # DEBUG
     pickle.write_pickle(seq_to_feature, cfg.tmp_path.joinpath('seq_to_feature.pkl')) # DEBUG
     pickle.write_pickle(sample_to_feature, cfg.tmp_path.joinpath('sample_to_feature.pkl')) # DEBUG
 
-    # bulk_pseudogenes = feat_cds.detect_pseudogenes(bulk_candidates)
+    return bulk_candidates, seq_to_feature, sample_to_feature, seq_to_sample, candidate_to_sample_id
             
-def predict_bulk_pseudogenes(bulk_candidates, seq_to_feature, sample_to_feature):
-    feat_cds.detect_pseudogenes_bulk(bulk_candidates)
-    pass
-
-
+def predict_bulk_pseudogenes(bulk_candidates, seq_to_sample, sample_to_data, seq_to_feature, candidate_to_sample_id):
+    pseudogenes_bulk = feat_cds.detect_pseudogenes_bulk(bulk_candidates, seq_to_sample, sample_to_data, seq_to_feature, candidate_to_sample_id)
+    psc.lookup(pseudogenes_bulk, pseudo=True)
+    pscc.lookup(pseudogenes_bulk, pseudo=True)
+    for pseudogene in pseudogenes_bulk:
+        anno.combine_annotation(pseudogene)
+    print(f'\t\tverified bulk pseudogenes: {len(pseudogenes_bulk)}')
+    return pseudogenes_bulk
 
 def main():
     # parse options and arguments

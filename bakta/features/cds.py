@@ -5,6 +5,8 @@ import subprocess as sp
 import sys
 import xml.etree.ElementTree as ET
 
+from collections import defaultdict
+
 from collections import OrderedDict
 from typing import Dict, Sequence, Set, Tuple, Union
 from pathlib import Path
@@ -631,7 +633,9 @@ def predict_pseudo_candidates(hypotheticals: Sequence[dict]) -> Sequence[dict]:
     log.info('found: pseudogene-candidates=%i', len(pseudo_candidates))
     return pseudo_candidates
 
-def predict_pseudo_candidates_bulk(hypotheticals: Sequence[dict]) -> Sequence[dict]:
+import bakta.io.pickle as pickle
+
+def predict_pseudo_candidates_bulk(hypotheticals: Sequence[dict], feature_to_sample_id: dict[str, str]) -> Sequence[dict]:
     """
     Conduct homology search of hypothetical CDSs against the PSC db to find pseudogene candidates.
     """
@@ -671,11 +675,13 @@ def predict_pseudo_candidates_bulk(hypotheticals: Sequence[dict]) -> Sequence[di
         raise Exception(f'diamond error! error code: {proc.returncode}')
 
     pseudo_candidates = []
+    pseudo_candidates_to_sample_id = defaultdict(list)
     cds_by_hexdigest = orf.get_orf_dictionary(hypotheticals, bulk=True)
     with diamond_output_path.open() as fh:
         for line in fh:
             (aa_identifier, cluster_id, query_length, subject_length, alignment_length, identity, evalue, bitscore, query_start, query_end, subject_start, subject_end, subject_sequence) = line.rstrip('\n').split('\t')
             cds = cds_by_hexdigest[aa_identifier]
+            samples_with_current_cds = feature_to_sample_id[pickle.feature_to_hash(cds)]
             query_cov = int(alignment_length) / len(cds['aa'])
             subject_cov = int(alignment_length) / int(subject_length)
             identity = float(identity) / 100
@@ -696,20 +702,19 @@ def predict_pseudo_candidates_bulk(hypotheticals: Sequence[dict]) -> Sequence[di
                     'reference_sequence': subject_sequence
                 }
                 pseudo_candidates.append(cds)
+                pseudo_candidates_to_sample_id[pickle.feature_to_hash(cds)] = samples_with_current_cds
                 log.debug(
                     'pseudogene-candidate: seq=%s, start=%i, stop=%i, strand=%s, aa-length=%i, query-cov=%0.3f, subject-cov=%0.3f, identity=%0.3f, score=%0.1f, evalue=%1.1e, UniRef90=%s',
                     cds['sequence'], cds['start'], cds['stop'], cds['strand'], len(cds['aa']), query_cov, subject_cov, identity, bitscore, evalue, cluster_id
                 )
     log.info('found: pseudogene-candidates=%i', len(pseudo_candidates))
-    return pseudo_candidates
+    return pseudo_candidates, pseudo_candidates_to_sample_id
 
-def detect_pseudogenes_bulk(candidates: Sequence[dict], cdss: Sequence[dict], data: dict) -> Sequence[dict]:
+def detect_pseudogenes_bulk(candidates: Sequence[dict], seq_to_sample: dict, sample_to_data: dict, seq_to_feature: dict, candidate_to_sample_id: dict) -> Sequence[dict]:
     """
     Conduct a BLASTX search of 5'/3'-extended sequences of pseudogene candidates against matching PSCs.
     Search for and determine possible pseudogenization causes in the resulting alignments.
     """
-    # TODO: implement based on the `detect_pseudogenes` function
-    return
     psc_references_faa_path = cfg.tmp_path.joinpath('cds.pseudo.references_bulk.faa')
     psc_references_dmnd_path = cfg.tmp_path.joinpath('cds.pseudo.references_bulk.dmnd')
     candidates_elongated_sequences_path = cfg.tmp_path.joinpath('cds.pseudo.elongated-sequences_bulk.fna')
@@ -721,18 +726,44 @@ def detect_pseudogenes_bulk(candidates: Sequence[dict], cdss: Sequence[dict], da
             fh.write(f">{cluster_id}\n{faa_seq}\n")
 
     # Get extended cds sequences for each sequence with respect to each sample
-    
 
-    sequences = {seq['id']: seq for seq in data['sequences']}
-    candidates_extended_positions = {}
+    candidates_extended_positions_seqs = defaultdict(set)
+    elongated_seqs = dict() # aa_hexdigest_`num` as key, elongated sequence as value
+    elongated_seq_to_extended_position = defaultdict(list)
+    elongated_seq_to_cds_feature_of_origin = defaultdict(list)
+
+    for cds in candidates:
+        # samples_with_cds = seq_to_sample[cds['aa_hexdigest']]
+
+        # get all CDS features with the same AA sequence as in the current pseudo candidate
+        features_with_the_same_aa = seq_to_feature[cds['aa_hexdigest']]
+
+        for cds_feature in features_with_the_same_aa:
+            # for each CDS feature (an ordered dict that stores information about the sequence, start and stop positions, etc.)
+            # get all sample ids (paths to pickled Bakta data dicts) that contain this feature
+            samples_with_cds_feature = candidate_to_sample_id[pickle.feature_to_hash(cds_feature)]
+            for sample_id in samples_with_cds_feature:
+                # for each sample featuring current hypothetical CDS get contigs to elongate the nucleotide CDS sequence
+                sample_data = sample_to_data[sample_id]
+                # TODO: optimise, don't collect ass seqs in a dict, just find the first one with matching id
+                sequences = {seq['id']: seq for seq in sample_data['sequences']}
+                seq = sequences[cds_feature['sequence']]
+                cds_elongated = get_elongated_cds(cds_feature, seq)
+                seq = bu.extract_feature_sequence(cds_elongated, seq)
+                orf_key_bulk = orf.get_orf_key_bulk(cds_feature)
+
+                # revised new approach
+                num_of_elongated_seqs_from_curr_seq = len(candidates_extended_positions_seqs[orf_key_bulk])
+                orf_key_bulk_elongated = f"{orf_key_bulk}_{num_of_elongated_seqs_from_curr_seq}"
+                elongated_seqs[orf_key_bulk_elongated] = seq
+                elongated_seq_to_extended_position[orf_key_bulk_elongated].append(cds_elongated)
+                elongated_seq_to_cds_feature_of_origin[orf_key_bulk_elongated].append(cds)
+
+                candidates_extended_positions_seqs[orf_key_bulk].add(seq)
+
     with candidates_elongated_sequences_path.open(mode='w') as fh:
-        for cds in candidates:
-            seq = sequences[cds['sequence']]
-            cds_elongated = get_elongated_cds(cds, seq)
-            seq = bu.extract_feature_sequence(cds_elongated, seq)
-            orf_key = orf.get_orf_key(cds)
-            fh.write(f">{orf_key}\n{seq}\n")
-            candidates_extended_positions[orf_key] = cds_elongated
+        for orf_key_elongated, elongated_seq in elongated_seqs.items():
+            fh.write(f">{orf_key_elongated}\n{elongated_seq}\n")
 
     commands = [
         [
@@ -773,99 +804,111 @@ def detect_pseudogenes_bulk(candidates: Sequence[dict], cdss: Sequence[dict], da
             log.warning('PSEUDO failed! diamond-error-code=%d', proc.returncode)
             raise Exception(f'diamond error! error code: {proc.returncode}\n{proc.stdout}')
 
+    # detect pseudogenes for each sequence with respect to each sample
     pseudogenes = []
-    cds_by_hexdigest = orf.get_orf_dictionary(candidates)
-    uniref90_by_hexdigest = {aa_identifier: cds['psc']['uniref90_id'] for aa_identifier, cds in orf.get_orf_dictionary(cdss).items() if 'psc' in cds and 'uniref90_id' in cds['psc']}
+
+    # collect all uniref90 ids from all cds features from all samples
+    uniref90_by_hexdigest = {}
+    for sample_cds_features in seq_to_feature.values():
+        uniref90_by_hexdigest_sample = {aa_identifier: cds['psc']['uniref90_id'] for aa_identifier, cds in orf.get_orf_dictionary(sample_cds_features, bulk=True).items() if 'psc' in cds and 'uniref90_id' in cds['psc']}
+        uniref90_by_hexdigest |= uniref90_by_hexdigest_sample
+
     with candidates_blastx_output_path.open() as fh:
         root = ET.parse(fh).getroot()
         for query in root.findall('./BlastOutput_iterations/Iteration'):
-            aa_identifier = query.find('Iteration_query-def').text
-            cds = cds_by_hexdigest[aa_identifier]
-            extended_positions = candidates_extended_positions[aa_identifier]
+            elongated_aa_identifier = query.find('Iteration_query-def').text
+            aa_identifier = elongated_aa_identifier.split('_')[0] # TODO: create a helper function with a descriptive name for this
+
+            origin_cds_features = elongated_seq_to_cds_feature_of_origin[elongated_aa_identifier]
+            extended_positions_list = elongated_seq_to_extended_position[elongated_aa_identifier]
+
             for hit in query.findall('./Iteration_hits/Hit'):
                 cluster_id = hit.find('Hit_id').text
-                if cluster_id == cds['pseudo-inference'][DB_PSC_COL_UNIREF90]:
-                    query_alignment = hit.find('Hit_hsps/Hsp/Hsp_qseq').text
-                    ref_alignment = hit.find('Hit_hsps/Hsp/Hsp_hseq').text
-                    query_alignment_start = int(hit.find('Hit_hsps/Hsp/Hsp_query-from').text)
-                    query_alignment_stop = int(hit.find('Hit_hsps/Hsp/Hsp_query-to').text)
-                    alignment_length = int(hit.find('Hit_hsps/Hsp/Hsp_align-len').text)
-                    identity = float(hit.find('Hit_hsps/Hsp/Hsp_identity').text) / alignment_length
-                    bitscore = float(hit.find('Hit_hsps/Hsp/Hsp_bit-score').text)
-                    evalue = float(hit.find('Hit_hsps/Hsp/Hsp_evalue').text)
+                for cds_idx, cds in enumerate(origin_cds_features):
+                    if cluster_id == cds['pseudo-inference'][DB_PSC_COL_UNIREF90]:
+                        query_alignment = hit.find('Hit_hsps/Hsp/Hsp_qseq').text
+                        ref_alignment = hit.find('Hit_hsps/Hsp/Hsp_hseq').text
+                        query_alignment_start = int(hit.find('Hit_hsps/Hsp/Hsp_query-from').text)
+                        query_alignment_stop = int(hit.find('Hit_hsps/Hsp/Hsp_query-to').text)
+                        alignment_length = int(hit.find('Hit_hsps/Hsp/Hsp_align-len').text)
+                        identity = float(hit.find('Hit_hsps/Hsp/Hsp_identity').text) / alignment_length
+                        bitscore = float(hit.find('Hit_hsps/Hsp/Hsp_bit-score').text)
+                        evalue = float(hit.find('Hit_hsps/Hsp/Hsp_evalue').text)
 
-                    if alignment_length == len(cds['aa']):  # skip non-extended genes (full match)
-                        log.debug(
-                            'no pseudogene (full match): seq=%s, start=%i, stop=%i, strand=%s',
-                            cds['sequence'], cds['start'], cds['stop'], cds['strand']
-                        )
-                        continue
+                        if alignment_length == len(cds['aa']):  # skip non-extended genes (full match)
+                            log.debug(
+                                'no pseudogene (full match): seq=%s, start=%i, stop=%i, strand=%s',
+                                cds['sequence'], cds['start'], cds['stop'], cds['strand']
+                            )
+                            continue
+                        
+                        extended_positions = extended_positions_list[cds_idx]
 
-                    observations, positions = detect_pseudogenization_observations(
-                        query_alignment,
-                        ref_alignment,
-                        query_alignment_start,
-                        query_alignment_stop,
-                        extended_positions,
-                        cds
-                    )
-
-                    directions = observations.get('directions', [])
-                    if bc.FEATURE_END_5_PRIME in directions or bc.FEATURE_END_3_PRIME in directions:
-                        pseudogene = {
-                            'start': positions['start'],
-                            'stop': positions['stop'],
-                            'observations': clean_observations(observations),
-                            'inference': cds['pseudo-inference'],
-                            'paralog': is_paralog(uniref90_by_hexdigest, aa_identifier, cluster_id),
-                            'identity': identity,
-                            'score': bitscore,
-                            'evalue': evalue
-                        }
-
-                        effects = []
-                        if len(observations.get(bc.PSEUDOGENE_EFFECT_START, [])) > 0:
-                            start_codon = ', '.join(map(str, observations[bc.PSEUDOGENE_EFFECT_START]))
-                            effects.append(f'Internal start codon at {start_codon}')
-                        if len(observations.get(bc.PSEUDOGENE_EFFECT_STOP, [])) > 0:
-                            stop_codon = ', '.join(map(str, observations[bc.PSEUDOGENE_EFFECT_STOP]))
-                            effects.append(f'Internal stop codon at {stop_codon}')
-                        effects = '; '.join(effects)
-
-                        causes = []
-                        if len(observations.get(bc.PSEUDOGENE_CAUSE_INSERTION, [])) > 0:
-                            insertions = ', '.join(map(str, observations[bc.PSEUDOGENE_CAUSE_INSERTION]))
-                            causes.append(f"Frameshift due to insertion around {insertions}.")
-                        if len(observations.get(bc.PSEUDOGENE_CAUSE_DELETION, [])) > 0:
-                            deletions = ', '.join(map(str, observations[bc.PSEUDOGENE_CAUSE_DELETION]))
-                            causes.append(f"Frameshift due to deletion around {deletions}.")
-                        if len(observations.get(bc.PSEUDOGENE_CAUSE_MUTATION, [])) > 0:
-                            mutations = ', '.join(map(str, observations[bc.PSEUDOGENE_CAUSE_MUTATION]))
-                            causes.append(f"Nonsense mutation around {mutations}.")
-                        # if observations.get(bc.PSEUDOGENE_EXCEPTION_SELENOCYSTEINE, None):  # only for pseudogenes with translation exception + other cause
-                        #     causes.append('Translation exception: Selenocysteine around ' + ', '.join(map(str, observations[bc.PSEUDOGENE_EXCEPTION_SELENOCYSTEINE])) + '.')
-                        # if observations.get(bc.PSEUDOGENE_EXCEPTION_PYROLYSINE, None):  # only for pseudogenes with translation exception + other cause
-                        #     causes.append('Translation exception: Pyrolysin around ' + ', '.join(map(str, observations[bc.PSEUDOGENE_EXCEPTION_PYROLYSINE])) + '.')
-                        causes = ' '.join(causes)  # pseudogene cause
-                        pseudogene['description'] = f"{effects}. {causes}" if effects != '' else causes
-
-                        if bc.FEATURE_END_5_PRIME in directions and bc.FEATURE_END_3_PRIME in directions:
-                            cds['truncated'] = bc.FEATURE_END_BOTH
-                        elif bc.FEATURE_END_5_PRIME in directions:
-                            cds['truncated'] = bc.FEATURE_END_5_PRIME if cds['strand'] == bc.STRAND_FORWARD else bc.FEATURE_END_3_PRIME
-                        elif bc.FEATURE_END_3_PRIME in directions:
-                            cds['truncated'] = bc.FEATURE_END_3_PRIME if cds['strand'] == bc.STRAND_FORWARD else bc.FEATURE_END_5_PRIME
-                        cds[bc.PSEUDOGENE] = pseudogene
-                        cds.pop('hypothetical')
-                        pseudogenes.append(cds)
-                        log.info(
-                            'pseudogene: seq=%s, start=%i, stop=%i, strand=%s, insertions=%s, deletions=%s, mutations=%s, effect=%s',
-                            cds['sequence'], cds['start'], cds['stop'], cds['strand'], observations.get(bc.PSEUDOGENE_CAUSE_INSERTION, []), observations.get(bc.PSEUDOGENE_CAUSE_DELETION, []), observations.get(bc.PSEUDOGENE_CAUSE_MUTATION, []), effects
+                        observations, positions = detect_pseudogenization_observations(
+                            query_alignment,
+                            ref_alignment,
+                            query_alignment_start,
+                            query_alignment_stop,
+                            extended_positions,
+                            cds
                         )
 
-                    elif observations[bc.PSEUDOGENE_EXCEPTION_SELENOCYSTEINE] or observations[bc.PSEUDOGENE_EXCEPTION_PYROLYSINE]:
-                        # TODO handle translation exceptions, correct annotation
-                        pass
+                        directions = observations.get('directions', [])
+                        if bc.FEATURE_END_5_PRIME in directions or bc.FEATURE_END_3_PRIME in directions:
+                            pseudogene = {
+                                'start': positions['start'],
+                                'stop': positions['stop'],
+                                'observations': clean_observations(observations),
+                                'inference': cds['pseudo-inference'],
+                                'paralog': is_paralog(uniref90_by_hexdigest, aa_identifier, cluster_id),
+                                'identity': identity,
+                                'score': bitscore,
+                                'evalue': evalue
+                            }
+
+                            effects = []
+                            if len(observations.get(bc.PSEUDOGENE_EFFECT_START, [])) > 0:
+                                start_codon = ', '.join(map(str, observations[bc.PSEUDOGENE_EFFECT_START]))
+                                effects.append(f'Internal start codon at {start_codon}')
+                            if len(observations.get(bc.PSEUDOGENE_EFFECT_STOP, [])) > 0:
+                                stop_codon = ', '.join(map(str, observations[bc.PSEUDOGENE_EFFECT_STOP]))
+                                effects.append(f'Internal stop codon at {stop_codon}')
+                            effects = '; '.join(effects)
+
+                            causes = []
+                            if len(observations.get(bc.PSEUDOGENE_CAUSE_INSERTION, [])) > 0:
+                                insertions = ', '.join(map(str, observations[bc.PSEUDOGENE_CAUSE_INSERTION]))
+                                causes.append(f"Frameshift due to insertion around {insertions}.")
+                            if len(observations.get(bc.PSEUDOGENE_CAUSE_DELETION, [])) > 0:
+                                deletions = ', '.join(map(str, observations[bc.PSEUDOGENE_CAUSE_DELETION]))
+                                causes.append(f"Frameshift due to deletion around {deletions}.")
+                            if len(observations.get(bc.PSEUDOGENE_CAUSE_MUTATION, [])) > 0:
+                                mutations = ', '.join(map(str, observations[bc.PSEUDOGENE_CAUSE_MUTATION]))
+                                causes.append(f"Nonsense mutation around {mutations}.")
+                            # if observations.get(bc.PSEUDOGENE_EXCEPTION_SELENOCYSTEINE, None):  # only for pseudogenes with translation exception + other cause
+                            #     causes.append('Translation exception: Selenocysteine around ' + ', '.join(map(str, observations[bc.PSEUDOGENE_EXCEPTION_SELENOCYSTEINE])) + '.')
+                            # if observations.get(bc.PSEUDOGENE_EXCEPTION_PYROLYSINE, None):  # only for pseudogenes with translation exception + other cause
+                            #     causes.append('Translation exception: Pyrolysin around ' + ', '.join(map(str, observations[bc.PSEUDOGENE_EXCEPTION_PYROLYSINE])) + '.')
+                            causes = ' '.join(causes)  # pseudogene cause
+                            pseudogene['description'] = f"{effects}. {causes}" if effects != '' else causes
+
+                            if bc.FEATURE_END_5_PRIME in directions and bc.FEATURE_END_3_PRIME in directions:
+                                cds['truncated'] = bc.FEATURE_END_BOTH
+                            elif bc.FEATURE_END_5_PRIME in directions:
+                                cds['truncated'] = bc.FEATURE_END_5_PRIME if cds['strand'] == bc.STRAND_FORWARD else bc.FEATURE_END_3_PRIME
+                            elif bc.FEATURE_END_3_PRIME in directions:
+                                cds['truncated'] = bc.FEATURE_END_3_PRIME if cds['strand'] == bc.STRAND_FORWARD else bc.FEATURE_END_5_PRIME
+                            cds[bc.PSEUDOGENE] = pseudogene
+                            cds.pop('hypothetical')
+                            pseudogenes.append(cds)
+                            log.info(
+                                'pseudogene: seq=%s, start=%i, stop=%i, strand=%s, insertions=%s, deletions=%s, mutations=%s, effect=%s',
+                                cds['sequence'], cds['start'], cds['stop'], cds['strand'], observations.get(bc.PSEUDOGENE_CAUSE_INSERTION, []), observations.get(bc.PSEUDOGENE_CAUSE_DELETION, []), observations.get(bc.PSEUDOGENE_CAUSE_MUTATION, []), effects
+                            )
+
+                        elif observations[bc.PSEUDOGENE_EXCEPTION_SELENOCYSTEINE] or observations[bc.PSEUDOGENE_EXCEPTION_PYROLYSINE]:
+                            # TODO handle translation exceptions, correct annotation
+                            pass
 
     for cds in candidates:
         cds.pop('pseudo-inference')
