@@ -437,7 +437,6 @@ def predict_sorfs(data: dict, log: logging.Logger):
     ############################################################################
     if(cfg.skip_sorf):
         print('skip sORF prediction...')
-        record_skip('sorf_prediction', 'cfg.skip_sorf=True')
         return
     
     print('detect & annotate sORF...')
