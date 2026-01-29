@@ -39,6 +39,8 @@ setup(
         'console_scripts': [
             'bakta=bakta.main:main',
             'bakta_proteins=bakta.proteins:main',
+            'bakta_pseudo=bakta.pseudogenes:main',
+            'bakta_pseudo_bulk=bakta.pseudogenes:main_bulk',
             'bakta_db=bakta.db:main',
             'bakta_plot=bakta.plot:main',
             'bakta_io=bakta.json_io:main'

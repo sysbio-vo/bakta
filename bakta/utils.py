@@ -71,6 +71,7 @@ def parse_arguments():
     arg_group_io.add_argument('--prefix', '-p', action='store', default=None, help='Prefix for output files')
     arg_group_io.add_argument('--output', '-o', action='store', default=os.getcwd(), help='Output directory (default = current working directory)')
     arg_group_io.add_argument('--force', '-f', action='store_true', help='Force overwriting existing output folder (except for current working directory)')
+    arg_group_io.add_argument('--cds-data', action='store', default=None, dest='cds_data', help='Path to a pickled Bakta data object with CDS to predict pseudogenes')
 
     arg_group_organism = parser.add_argument_group('Organism')
     arg_group_organism.add_argument('--genus', action='store', default=None, help='Genus name')
@@ -110,6 +111,8 @@ def parse_arguments():
     arg_group_workflow.add_argument('--skip-plot', action='store_true', dest='skip_plot', help='Skip generation of circular genome plots')
     # flag for cds prediction only
     arg_group_workflow.add_argument('--cds-only', action='store_true', dest='cds_only', help='Run CDS prediction only (Prodigal), write CDS-only outputs')
+    # flag for cds prediction only
+    arg_group_workflow.add_argument('--pseudogene-only', action='store_true', dest='pseudogene_only', help='Run pseudogene detection only on CDS search results')
     # flag for rna prediction only
     arg_group_workflow.add_argument('--rna-only', action='store_true', dest='rna_only', help='Run RNA prediction only, write RNA-only outputs')
     # flag for sorf + extra

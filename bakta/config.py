@@ -74,8 +74,14 @@ skip_gap = None
 skip_ori = None
 skip_filter = None
 skip_plot = None
+
 # cds prediction only flag
 cds_only = False
+
+# pseudogene detection only flag
+pseudogene_only = False
+cds_data = None
+
 # rna prediction only flag
 rna_only = False
 # sorf + extra flag
@@ -105,6 +111,15 @@ def setup(args):
     global cds_only
     cds_only = getattr(args, "cds_only", False)
     log.info('cds-only=%s', cds_only)
+
+    # pseudogene detection only flag
+    global pseudogene_only, cds_data
+    pseudogene_only = getattr(args, "pseudogene_only", False)
+    log.info('pseudogene-only=%s', pseudogene_only)
+    cds_data = getattr(args, "cds_data", None)
+    if pseudogene_only and cds_data is None:
+        log.error(f'Missing cds_data parameter for pseudogene detection!')
+        raise ValueError(f'Required parameter for psedogene prediction `cds_data` is not set')
 
     # rna prediction only flag
     global rna_only
@@ -358,6 +373,12 @@ def setup(args):
 
         log.info('cds-only active -> overriding workflow flags: '
                  'disable RNAs/sORFs/gaps/ori/filter/plot/pseudo; keep CDS prediction.')
+
+    if pseudogene_only:
+        # NOTE: do I really need to nullify/set to False all other config parameters?
+        log.info('pseudogene-only active -> overriding workflow flags: '
+                 'disable RNAs/sORFs/gaps/ori/filter/plot/pseudo; keep CDS prediction.')
+
 
     # ensure only RNA prediction runs
     if rna_only:

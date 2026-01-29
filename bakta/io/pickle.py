@@ -1,4 +1,5 @@
 import pickle
+import hashlib
 import logging
 
 from collections import OrderedDict
@@ -89,3 +90,18 @@ def merge_precomputed_cds_and_rna(data: dict, cds_pkl_path, rna_pkl_path, log) -
         )
 
 
+# TODO: replace everywhere by `load_pickle`
+def read_pickle(pickle_path: str) -> dict:
+    with open(pickle_path, 'rb') as fh:
+        pickled_obj = pickle.load(fh)
+    return pickled_obj
+
+def feature_to_hash(feature: dict) -> str:
+    feature_str = ':'.join([f'{k}_{str(feature[k])}' for k in sorted(feature.keys())])
+    feature_hex = hashlib.sha256(feature_str.encode('utf-8')).hexdigest()
+    return feature_hex
+
+# TODO: delete if not needed
+def feature_nt_to_hash(feature: dict) -> str:
+    assert 'nt' in feature
+    return hashlib.sha256(feature['nt'].encode('utf-8')).hexdigest()
