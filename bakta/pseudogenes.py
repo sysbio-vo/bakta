@@ -121,6 +121,8 @@ def main_bulk():
 
     bulk_pseudogenes = predict_bulk_pseudogenes(bulk_candidates, seq_to_sample, sample_to_data, seq_to_feature, candidate_to_sample_id) if len(bulk_candidates) > 0 else []
 
+    pickle.write_pickle(bulk_pseudogenes, cfg.tmp_path.joinpath('bulk_pseudogenes.pkl')) # DEBUG
+
     cfg.run_end = datetime.now()
     pseudogene_predicition_duration = (cfg.run_end - candidates_search_end_time).total_seconds()
     print(f'Pseudogene prediction finished in {int(pseudogene_predicition_duration / 60):01}:{int(pseudogene_predicition_duration % 60):02} [mm:ss].')
@@ -161,7 +163,7 @@ def get_bulk_candidates(sample_to_data: dict[str, object]):
             if feat['type'] != bc.FEATURE_CDS or 'hypothetical' not in feat or 'edge' in feat or feat.get('start_type', 'Edge') == 'Edge':
                 continue
             sample_to_feature[bakta_pickle_path].append(feat) # will be used to elongate sequences during pseudogene prediction
-            seq_to_feature[feat['aa_hexdigest']].append(feat) # will be modified in place during pseudogene prediction
+            seq_to_feature[feat['aa_hexdigest']].append((feat, bakta_pickle_path)) # will be modified in place during pseudogene prediction
             seq_to_sample[feat['aa_hexdigest']].append(bakta_pickle_path)
             feature_to_sample_id[pickle.feature_to_hash(feat)].append(bakta_pickle_path)
 
@@ -169,14 +171,16 @@ def get_bulk_candidates(sample_to_data: dict[str, object]):
             if feat['aa_hexdigest'] not in unique_aa_seqs:
                 unique_hypothetical_features.append(feat)
                 unique_aa_seqs.add(feat['aa_hexdigest'])
-
-    # return unique_hypothetical_features, seq_to_feature, sample_to_feature
     
     bulk_candidates, candidate_to_sample_id = feat_cds.predict_pseudo_candidates_bulk(unique_hypothetical_features, feature_to_sample_id)
-    # bulk_candidates = []
 
+    # DEBUG
     pickle.write_pickle(bulk_candidates, cfg.tmp_path.joinpath('cds.pseudo.candidates_bulk_list.pkl')) # DEBUG
     pickle.write_pickle(candidate_to_sample_id, cfg.tmp_path.joinpath('cds.pseudo.candidate_to_sample_id.pkl')) # DEBUG
+
+    debug_candidate_ids = [id(candidate) for candidate in bulk_candidates]
+    pickle.write_pickle(debug_candidate_ids, cfg.tmp_path.joinpath('debug_candidate_ids_debug.pkl')) # DEBUG
+
     pickle.write_pickle(seq_to_feature, cfg.tmp_path.joinpath('seq_to_feature.pkl')) # DEBUG
     pickle.write_pickle(sample_to_feature, cfg.tmp_path.joinpath('sample_to_feature.pkl')) # DEBUG
 

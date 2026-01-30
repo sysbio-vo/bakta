@@ -738,28 +738,38 @@ def detect_pseudogenes_bulk(candidates: Sequence[dict], seq_to_sample: dict, sam
         # get all CDS features with the same AA sequence as in the current pseudo candidate
         features_with_the_same_aa = seq_to_feature[cds['aa_hexdigest']]
 
-        for cds_feature in features_with_the_same_aa:
+        for cds_feature, sample_id in features_with_the_same_aa:
+
             # for each CDS feature (an ordered dict that stores information about the sequence, start and stop positions, etc.)
             # get all sample ids (paths to pickled Bakta data dicts) that contain this feature
-            samples_with_cds_feature = candidate_to_sample_id[pickle.feature_to_hash(cds_feature)]
-            for sample_id in samples_with_cds_feature:
-                # for each sample featuring current hypothetical CDS get contigs to elongate the nucleotide CDS sequence
-                sample_data = sample_to_data[sample_id]
-                # TODO: optimise, don't collect ass seqs in a dict, just find the first one with matching id
-                sequences = {seq['id']: seq for seq in sample_data['sequences']}
-                seq = sequences[cds_feature['sequence']]
-                cds_elongated = get_elongated_cds(cds_feature, seq)
-                seq = bu.extract_feature_sequence(cds_elongated, seq)
-                orf_key_bulk = orf.get_orf_key_bulk(cds_feature)
 
-                # revised new approach
-                num_of_elongated_seqs_from_curr_seq = len(candidates_extended_positions_seqs[orf_key_bulk])
-                orf_key_bulk_elongated = f"{orf_key_bulk}_{num_of_elongated_seqs_from_curr_seq}"
+            # for each sample featuring current hypothetical CDS get contigs to elongate the nucleotide CDS sequence
+            sample_data = sample_to_data[sample_id]
+            # TODO: optimise, don't collect ass seqs in a dict, just find the first one with matching id
+            sequences = {seq['id']: seq for seq in sample_data['sequences']}
+            seq = sequences[cds_feature['sequence']]
+            cds_elongated = get_elongated_cds(cds_feature, seq)
+            seq = bu.extract_feature_sequence(cds_elongated, seq)
+            orf_key_bulk = orf.get_orf_key_bulk(cds_feature)
+
+            # revised new approach
+            num_of_elongated_seqs_from_curr_seq = len(candidates_extended_positions_seqs[orf_key_bulk])
+            orf_key_bulk_elongated = f"{orf_key_bulk}_{num_of_elongated_seqs_from_curr_seq}"
+
+            if seq not in candidates_extended_positions_seqs[orf_key_bulk]:
                 elongated_seqs[orf_key_bulk_elongated] = seq
-                elongated_seq_to_extended_position[orf_key_bulk_elongated].append(cds_elongated)
-                elongated_seq_to_cds_feature_of_origin[orf_key_bulk_elongated].append(cds)
-
                 candidates_extended_positions_seqs[orf_key_bulk].add(seq)
+
+            elongated_seq_to_extended_position[orf_key_bulk_elongated].append(cds_elongated)
+            elongated_seq_to_cds_feature_of_origin[orf_key_bulk_elongated].append(cds_feature)
+
+    # DEBUG
+    pickle.write_pickle(elongated_seq_to_cds_feature_of_origin, cfg.tmp_path.joinpath('elongated_seq_to_cds_feature_of_origin_debug.pkl')) # DEBUG
+    elongated_seq_to_cds_feature_of_origin_cds_ids = defaultdict(list)
+    for orf_key_debug, cds_features_debug in elongated_seq_to_cds_feature_of_origin.items():
+        for cds_feature_debug in cds_features_debug:
+            elongated_seq_to_cds_feature_of_origin_cds_ids[orf_key_debug].append(id(cds_feature_debug))
+    pickle.write_pickle(elongated_seq_to_cds_feature_of_origin_cds_ids, cfg.tmp_path.joinpath('elongated_seq_to_cds_feature_of_origin_cds_ids_debug.pkl')) # DEBUG
 
     with candidates_elongated_sequences_path.open(mode='w') as fh:
         for orf_key_elongated, elongated_seq in elongated_seqs.items():
@@ -809,7 +819,8 @@ def detect_pseudogenes_bulk(candidates: Sequence[dict], seq_to_sample: dict, sam
 
     # collect all uniref90 ids from all cds features from all samples
     uniref90_by_hexdigest = {}
-    for sample_cds_features in seq_to_feature.values():
+    for sample_cds_features_and_sample_ids in seq_to_feature.values():
+        sample_cds_features = list(map(lambda x: x[0], sample_cds_features_and_sample_ids))
         uniref90_by_hexdigest_sample = {aa_identifier: cds['psc']['uniref90_id'] for aa_identifier, cds in orf.get_orf_dictionary(sample_cds_features, bulk=True).items() if 'psc' in cds and 'uniref90_id' in cds['psc']}
         uniref90_by_hexdigest |= uniref90_by_hexdigest_sample
 
