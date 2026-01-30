@@ -763,14 +763,6 @@ def detect_pseudogenes_bulk(candidates: Sequence[dict], seq_to_sample: dict, sam
             elongated_seq_to_extended_position[orf_key_bulk_elongated].append(cds_elongated)
             elongated_seq_to_cds_feature_of_origin[orf_key_bulk_elongated].append(cds_feature)
 
-    # DEBUG
-    pickle.write_pickle(elongated_seq_to_cds_feature_of_origin, cfg.tmp_path.joinpath('elongated_seq_to_cds_feature_of_origin_debug.pkl')) # DEBUG
-    elongated_seq_to_cds_feature_of_origin_cds_ids = defaultdict(list)
-    for orf_key_debug, cds_features_debug in elongated_seq_to_cds_feature_of_origin.items():
-        for cds_feature_debug in cds_features_debug:
-            elongated_seq_to_cds_feature_of_origin_cds_ids[orf_key_debug].append(id(cds_feature_debug))
-    pickle.write_pickle(elongated_seq_to_cds_feature_of_origin_cds_ids, cfg.tmp_path.joinpath('elongated_seq_to_cds_feature_of_origin_cds_ids_debug.pkl')) # DEBUG
-
     with candidates_elongated_sequences_path.open(mode='w') as fh:
         for orf_key_elongated, elongated_seq in elongated_seqs.items():
             fh.write(f">{orf_key_elongated}\n{elongated_seq}\n")
