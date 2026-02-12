@@ -9,6 +9,8 @@ import re
 import shutil
 import sys
 import subprocess as sp
+import sqlite3
+import threading
 
 from argparse import Namespace
 from datetime import datetime
@@ -38,16 +40,19 @@ VERSION_MAX_DIGIT = 1000000000000
 VERSION_REGEX = re.compile(r'(\d+)\.(\d+)(?:[\.-](\d+))?')  # regex to search for version number in tool output. Takes missing patch version into consideration.
 
 # List of dependencies: tuples for: min version, max version, tool name & command line parameter, dependency check exclusion options
-DEPENDENCY_TRNASCAN = (Version(2, 0, 11), Version(VERSION_MAX_DIGIT, VERSION_MAX_DIGIT, VERSION_MAX_DIGIT), VERSION_REGEX, 'tRNAscan-SE', ('tRNAscan-SE', '-h'), ['--skip-trna'])
+DEPENDENCY_TRNASCAN = (Version(2, 0, 12), Version(VERSION_MAX_DIGIT, VERSION_MAX_DIGIT, VERSION_MAX_DIGIT), VERSION_REGEX, 'tRNAscan-SE', ('tRNAscan-SE', '-h'), ['--skip-trna'])
 DEPENDENCY_ARAGORN = (Version(1, 2, 41), Version(VERSION_MAX_DIGIT, VERSION_MAX_DIGIT, VERSION_MAX_DIGIT), VERSION_REGEX, 'Aragorn', ('aragorn', '-h'), ['skip-tmrna'])
-DEPENDENCY_CMSCAN = (Version(1, 1, 4), Version(VERSION_MAX_DIGIT, VERSION_MAX_DIGIT, VERSION_MAX_DIGIT), VERSION_REGEX, 'CMscan', ('cmscan', '-h'), ['--skip-rrna', '--skip-ncrna', '--skip-ncrna-region'])
+DEPENDENCY_CMSCAN = (Version(1, 1, 5), Version(VERSION_MAX_DIGIT, VERSION_MAX_DIGIT, VERSION_MAX_DIGIT), VERSION_REGEX, 'CMscan', ('cmscan', '-h'), ['--skip-rrna', '--skip-ncrna', '--skip-ncrna-region'])
 DEPENDENCY_PILERCR = (Version(1, 6), Version(VERSION_MAX_DIGIT, VERSION_MAX_DIGIT, VERSION_MAX_DIGIT), VERSION_REGEX, 'PilerCR', ('pilercr', '-options'), ['--skip-crispr'])
-DEPENDENCY_PYRODIGAL = (Version(3, 5, 0), Version(VERSION_MAX_DIGIT, VERSION_MAX_DIGIT, VERSION_MAX_DIGIT), VERSION_REGEX, 'Pyrodigal', (sys.executable, '-c', 'import pyrodigal; print(pyrodigal.__version__)'), ['--skip-cds'])
-DEPENDENCY_PYHMMER = (Version(0, 10, 15), Version(VERSION_MAX_DIGIT, VERSION_MAX_DIGIT, VERSION_MAX_DIGIT), VERSION_REGEX, 'Pyhmmer', (sys.executable, '-c', 'import pyhmmer; print(pyhmmer.__version__)'), ['--skip-cds', '--skip-sorf'])
-DEPENDENCY_DIAMOND = (Version(2, 1, 10), Version(VERSION_MAX_DIGIT, VERSION_MAX_DIGIT, VERSION_MAX_DIGIT), VERSION_REGEX, 'Diamond', ('diamond', 'help'), ['--skip-cds', '--skip-sorf'])
-DEPENDENCY_BLASTN = (Version(2, 14, 0), Version(VERSION_MAX_DIGIT, VERSION_MAX_DIGIT, VERSION_MAX_DIGIT), VERSION_REGEX, 'Blastn', ('blastn', '-version'), ['--skip-ori'])
-DEPENDENCY_AMRFINDERPLUS = (Version(4, 0, 3), Version(VERSION_MAX_DIGIT, VERSION_MAX_DIGIT, VERSION_MAX_DIGIT), VERSION_REGEX, 'AMRFinderPlus', ('amrfinder', '--version'), ['--skip-cds'])
+DEPENDENCY_PYRODIGAL = (Version(3, 7, 0), Version(VERSION_MAX_DIGIT, VERSION_MAX_DIGIT, VERSION_MAX_DIGIT), VERSION_REGEX, 'Pyrodigal', (sys.executable, '-c', 'import pyrodigal; print(pyrodigal.__version__)'), ['--skip-cds'])
+DEPENDENCY_PYHMMER = (Version(0, 12, 0), Version(VERSION_MAX_DIGIT, VERSION_MAX_DIGIT, VERSION_MAX_DIGIT), VERSION_REGEX, 'Pyhmmer', (sys.executable, '-c', 'import pyhmmer; print(pyhmmer.__version__)'), ['--skip-cds', '--skip-sorf'])
+DEPENDENCY_DIAMOND = (Version(2, 1, 22), Version(VERSION_MAX_DIGIT, VERSION_MAX_DIGIT, VERSION_MAX_DIGIT), VERSION_REGEX, 'Diamond', ('diamond', 'help'), ['--skip-cds', '--skip-sorf'])
+DEPENDENCY_BLASTN = (Version(2, 17, 0), Version(VERSION_MAX_DIGIT, VERSION_MAX_DIGIT, VERSION_MAX_DIGIT), VERSION_REGEX, 'Blastn', ('blastn', '-version'), ['--skip-ori'])
+DEPENDENCY_AMRFINDERPLUS = (Version(4, 2, 7), Version(VERSION_MAX_DIGIT, VERSION_MAX_DIGIT, VERSION_MAX_DIGIT), VERSION_REGEX, 'AMRFinderPlus', ('amrfinder', '--version'), ['--skip-cds'])
 DEPENDENCY_PYCIRCLIZE = (Version(1, 7, 0), Version(VERSION_MAX_DIGIT, VERSION_MAX_DIGIT, VERSION_MAX_DIGIT), VERSION_REGEX, 'pyCirclize', (sys.executable, '-c', 'import pycirclize; print(pycirclize.__version__)'), ['--skip-plot'])
+
+
+_local = threading.local()  # # init thread-local storage for DB connections
 
 
 def init_parser(sub_command: str=''):
@@ -94,6 +99,7 @@ def parse_arguments():
     arg_group_annotation.add_argument('--proteins', action='store', default=None, dest='proteins', help='Fasta file of trusted protein sequences for CDS annotation')
     arg_group_annotation.add_argument('--hmms', action='store', default=None, dest='hmms', help='HMM file of trusted hidden markov models in HMMER format for CDS annotation')
     arg_group_annotation.add_argument('--meta', action='store_true', help='Run in metagenome mode. This only affects CDS prediction.')
+    arg_group_annotation.add_argument('--partial', action='store_true', help='Predict partial (truncated) genes spanning linear sequence ends')
 
     arg_group_workflow = parser.add_argument_group('Workflow')
     arg_group_workflow.add_argument('--skip-trna', action='store_true', dest='skip_trna', help='Skip tRNA detection & annotation')
@@ -527,3 +533,23 @@ def extract_feature_sequence(feature: dict, sequence: dict) -> str:
     if(feature['strand'] == bc.STRAND_REVERSE):
         nt = str(Seq(nt).reverse_complement())
     return nt
+
+
+def get_db_connection():
+    if not hasattr(_local, "connection"):
+        uri_path = cfg.db_path.joinpath('bakta.db').absolute().resolve().as_posix()
+        db_uri = f"file:{uri_path}?immutable=1&mode=ro"
+        # immutable=1: disables locking/coordination for NAS speed
+        # mode=ro: explicitly read-only
+
+        conn = sqlite3.connect(db_uri, uri=True, check_same_thread=False)
+
+        # performance tuning
+        conn.execute('PRAGMA journal_mode = OFF')
+        conn.execute('PRAGMA cache_size = 4000')  # 4000 * 4Kb ~ 16Mb cache per thread
+        conn.execute(f'PRAGMA mmap_size = {1 * 1024 * 1024 * 1024}')  # 1Gb memory mapping
+        conn.row_factory = sqlite3.Row
+
+        _local.connection = conn
+
+    return _local.connection

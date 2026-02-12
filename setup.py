@@ -22,7 +22,7 @@ setup(
     author_email='oliver.schwengers@computational.bio.uni-giessen.de',
     url='https://github.com/oschwengers/bakta',
     packages=find_packages(include=['bakta', 'bakta.*']),
-    python_requires='>=3.9, <3.12',
+    python_requires='>=3.9, <3.14',
     include_package_data=False,
     zip_safe=False,
     install_requires=[
@@ -31,8 +31,8 @@ setup(
         'requests >= 2.25.1',
         'alive-progress >= 3.0.1',
         'PyYAML >= 6.0',
-        'pyrodigal >= 3.5.0',
-        'pyhmmer >= 0.10.15',
+        'pyrodigal >= 3.7.0',
+        'pyhmmer >= 0.12.0',
         'pycirclize >= 1.7.0'
     ],
     entry_points={
@@ -52,6 +52,8 @@ setup(
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
         'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
+        'Programming Language :: Python :: 3.13',
         'Development Status :: 5 - Production/Stable',
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
         'Topic :: Scientific/Engineering :: Bio-Informatics',

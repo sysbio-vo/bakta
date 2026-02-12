@@ -1,6 +1,7 @@
 import logging
 import re
 
+from collections import defaultdict
 from datetime import date
 from pathlib import Path
 from typing import Sequence, Tuple
@@ -19,11 +20,14 @@ log = logging.getLogger('INSDC')
 
 
 def build_biopython_sequence_list(data: dict, features: Sequence[dict]):
+    sequence_feature_map = defaultdict(list)
+    if len(features) > 0:
+        sequence_id_key = 'sequence' if 'sequence' in features[0] else 'contig'  # <1.10.0 compatibility
+        for feature in features:
+            sequence_feature_map[feature[sequence_id_key]].append(feature)
     sequence_list = []
     for seq in data['sequences']:
-        sequence_features = []
-        if len(features) > 0:
-            sequence_features = [feat for feat in features if feat['sequence'] == seq['id']] if 'sequence' in features[0] else [feat for feat in features if feat['contig'] == seq['id']]  # <1.10.0 compatibility
+        sequence_features = sequence_feature_map[seq['id']]
         comment = (
             'Annotated with Bakta',
             f"Software: v{cfg.version}\n",
@@ -162,11 +166,14 @@ def build_biopython_sequence_list(data: dict, features: Sequence[dict]):
                             qualifiers['EC_number'] = ec_number
                 if('exception' in feature):
                     ex = feature['exception']
-                    pos = f"{ex['start']}..{ex['stop']}"
-                    if(feature['strand'] == bc.STRAND_REVERSE):
-                        pos = f"complement({pos})"
-                    qualifiers['transl_except']=f"(pos:{pos},aa:{ex['aa']})"
-                    qualifiers['note'].append(f"codon on position {ex['codon_position']} is a {ex['type']} codon")
+                    if(ex['type'] == 'selenocysteine'):
+                        pos = f"{ex['start']}..{ex['stop']}"
+                        if(feature['strand'] == bc.STRAND_REVERSE):
+                            pos = f"complement({pos})"
+                        qualifiers['transl_except']=f"(pos:{pos},aa:{ex['aa']})"
+                        qualifiers['note'].append(f"codon on position {ex['codon_position']} is a {ex['type']} codon")
+                    elif(ex['type'] == 'ribosomal_slippage'):
+                        qualifiers[bc.INSDC_FEAUTRE_CDS_RIBOSOMAL_SLIPPAGE] = None
                 if(bc.FEATURE_SIGNAL_PEPTIDE in feature):
                     sigpep_qualifiers = {}
                     sigpep_qualifiers['locus_tag'] = feature['locus']
@@ -191,8 +198,6 @@ def build_biopython_sequence_list(data: dict, features: Sequence[dict]):
                 qualifiers['inference'] = 'profile:aragorn:1.2'
                 if('tag' in feature):
                     qualifiers['tag_peptide'] = f"{feature['tag']['start']}..{feature['tag']['stop']}"
-                    if feature['strand'] == bc.STRAND_REVERSE:
-                        qualifiers['tag_peptide'] = f"complement({qualifiers['tag_peptide']})"
                 insdc_feature_type = bc.INSDC_FEATURE_TM_RNA
             elif(feature['type'] == bc.FEATURE_R_RNA):
                 for rfam_id in [dbxref.split(':')[1] for dbxref in feature['db_xrefs'] if dbxref.split(':')[0] == bc.DB_XREF_RFAM]:
@@ -264,6 +269,7 @@ def build_biopython_sequence_list(data: dict, features: Sequence[dict]):
                 if(feature.get('gene', None)):
                     if(cfg.compliant):
                         if(ba.RE_GENE_SYMBOL.fullmatch(feature['gene'])):  # discard non-standard gene symbols
+                            qualifiers['gene'] = feature['gene']
                             gene_qualifier['gene'] = feature['gene']
                         else:
                             qualifiers.pop('gene', None)

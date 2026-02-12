@@ -3,14 +3,14 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPL%20v3-brightgreen.svg)](https://github.com/oschwengers/bakta/blob/master/LICENSE)
 ![PyPI - Python Version](https://img.shields.io/pypi/pyversions/bakta.svg)
 ![PyPI - Status](https://img.shields.io/pypi/status/bakta.svg)
-![GitHub release](https://img.shields.io/github/release/oschwengers/bakta.svg)
 
+![GitHub release](https://img.shields.io/github/release/oschwengers/bakta.svg)
 [![PyPI](https://img.shields.io/pypi/v/bakta.svg)](https://pypi.org/project/bakta)
 [![Conda](https://img.shields.io/conda/vn/bioconda/bakta.svg)](https://bioconda.github.io/recipes/bakta/README.html)
 [![Docker Image Version](https://img.shields.io/docker/v/oschwengers/bakta?sort=semver&label=docker)](https://hub.docker.com/r/oschwengers/bakta)
 [![Spack](https://img.shields.io/spack/v/py-bakta)](https://packages.spack.io/package.html?name=py-bakta)
 [![Galaxy Toolshed - Tool Version](https://img.shields.io/galaxytoolshed/v/bakta/iuc/bakta?label=usegalaxy.eu)](https://usegalaxy.eu/root?tool_id=bakta)
-[![Static Badge](https://img.shields.io/badge/bio.tools-v1.9.4-blue?link=https%3A%2F%2Fbio.tools%2Fbakta)](https://bio.tools/bakta)
+[![Static Badge](https://img.shields.io/badge/bio.tools-v1.11.4-blue?link=https%3A%2F%2Fbio.tools%2Fbakta)](https://bio.tools/bakta)
 
 # Bakta: rapid & standardized annotation of bacterial genomes, MAGs & plasmids
 
@@ -112,15 +112,15 @@ python3 -m pip install --user bakta
 
 Bakta requires the following 3rd party software tools which must be installed and executable to use the full set of features:
 
-- tRNAscan-SE (2.0.11) <https://doi.org/10.1101/614032> <http://lowelab.ucsc.edu/tRNAscan-SE>
+- tRNAscan-SE (2.0.12) <https://doi.org/10.1101/614032> <http://lowelab.ucsc.edu/tRNAscan-SE>
 - Aragorn (1.2.41) <http://dx.doi.org/10.1093/nar/gkh152> <http://130.235.244.92/ARAGORN>
-- INFERNAL (1.1.4) <https://dx.doi.org/10.1093%2Fbioinformatics%2Fbtt509> <http://eddylab.org/infernal>
+- INFERNAL (1.1.5) <https://dx.doi.org/10.1093%2Fbioinformatics%2Fbtt509> <http://eddylab.org/infernal>
 - PILER-CR (1.06) <https://doi.org/10.1186/1471-2105-8-18> <http://www.drive5.com/pilercr>
-- Pyrodigal (3.5.0) <https://doi.org/10.21105/joss.04296> <https://github.com/althonos/pyrodigal>
-- PyHMMER (0.10.15) <https://doi.org/10.21105/joss.04296> <https://github.com/althonos/pyhmmer>
-- Diamond (2.1.10) <https://doi.org/10.1038/nmeth.3176> <https://github.com/bbuchfink/diamond>
-- Blast+ (2.14.0) <https://www.ncbi.nlm.nih.gov/pubmed/2231712> <https://blast.ncbi.nlm.nih.gov>
-- AMRFinderPlus (4.0.3) <https://github.com/ncbi/amr>
+- Pyrodigal (3.7.0) <https://doi.org/10.21105/joss.04296> <https://github.com/althonos/pyrodigal>
+- PyHMMER (0.12.0) <https://doi.org/10.21105/joss.04296> <https://github.com/althonos/pyhmmer>
+- Diamond (2.1.22) <https://doi.org/10.1038/nmeth.3176> <https://github.com/bbuchfink/diamond>
+- Blast+ (2.17.0) <https://www.ncbi.nlm.nih.gov/pubmed/2231712> <https://blast.ncbi.nlm.nih.gov>
+- AMRFinderPlus (4.2.7) <https://github.com/ncbi/amr>
 - pyCirclize (1.7.0) https://github.com/moshi4/pyCirclize
 
 ### Database download
