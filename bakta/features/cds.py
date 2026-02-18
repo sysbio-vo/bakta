@@ -760,10 +760,15 @@ def detect_pseudogenes_bulk(candidates: Sequence[dict], seq_to_sample: dict, sam
         # get all CDS features with the same AA sequence as in the current pseudo candidate
         features_with_the_same_aa = seq_to_feature[cds['aa_hexdigest']]
 
+        candidate_pseudo_inference = cds['pseudo-inference']
+
         for cds_feature, sample_id in features_with_the_same_aa:
 
             # for each CDS feature (an ordered dict that stores information about the sequence, start and stop positions, etc.)
             # get all sample ids (paths to pickled Bakta data dicts) that contain this feature
+
+            # copy candidate pseudo-inference information to the current CDS feature
+            cds_feature['pseudo-inference'] = copy.deepcopy(candidate_pseudo_inference)
 
             # for each sample featuring current hypothetical CDS get contigs to elongate the nucleotide CDS sequence
             sample_data = sample_to_data[sample_id]
@@ -775,12 +780,13 @@ def detect_pseudogenes_bulk(candidates: Sequence[dict], seq_to_sample: dict, sam
             orf_key_bulk = orf.get_orf_key_bulk(cds_feature)
 
             # revised new approach
+            candidates_extended_positions_seqs[orf_key_bulk].add(seq)
+
             num_of_elongated_seqs_from_curr_seq = len(candidates_extended_positions_seqs[orf_key_bulk])
             orf_key_bulk_elongated = f"{orf_key_bulk}_{num_of_elongated_seqs_from_curr_seq}"
 
-            if seq not in candidates_extended_positions_seqs[orf_key_bulk]:
+            if orf_key_bulk_elongated not in elongated_seqs:
                 elongated_seqs[orf_key_bulk_elongated] = seq
-                candidates_extended_positions_seqs[orf_key_bulk].add(seq)
 
             elongated_seq_to_extended_position[orf_key_bulk_elongated].append(cds_elongated)
             elongated_seq_to_cds_feature_of_origin[orf_key_bulk_elongated].append(cds_feature)

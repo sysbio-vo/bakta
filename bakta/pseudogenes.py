@@ -112,7 +112,7 @@ def main_bulk():
             sample_to_data[bakta_pickle_path] = data
 
     # get all hypotheticals and save intermediate files to tmp dir
-    print('\Find pseudogene candidates...')
+    print('\nFind pseudogene candidates...')
     bulk_candidates, seq_to_feature, sample_to_feature, seq_to_sample, candidate_to_sample_id = get_bulk_candidates(sample_to_data)
 
     candidates_search_end_time = datetime.now()
