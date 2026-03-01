@@ -56,24 +56,27 @@ def predict_t_rnas(data: dict, sequences_path: Path):
         str(sequences_path)
     ]
     log.debug('cmd=%s', cmd)
+    log.info(f'running {cmd} for trnas prediction')
     proc = sp.run(
         cmd,
-        cwd=str(cfg.tmp_path),
-        env=cfg.env,
-        stdout=sp.PIPE,
-        stderr=sp.PIPE,
-        universal_newlines=True
+        cwd=str(cfg.tmp_path)
     )
+
+    log.info(f'finished {cmd} for trnas prediction')
     if(proc.returncode != 0):
         log.debug('stdout=\'%s\', stderr=\'%s\'', proc.stdout, proc.stderr)
         log.warning('tRNAs failed! tRNAscan-SE-error-code=%d', proc.returncode)
         raise Exception(f'tRNAscan-SE error! error code: {proc.returncode}')
 
+    log.info(f'collecting trnas')
     trnas = {}
     sequences = {seq['id']: seq for seq in data['sequences']}
+
+    log.info(f'opening {txt_output_path}')
     with txt_output_path.open() as fh:
         for line in fh.readlines()[3:]:  # skip first 3 lines
             (sequence_id, trna_id, start, stop, trna_type, anti_codon, intron_begin, bounds_end, score, note) = line.split('\t')
+            log.info(f'processing {(sequence_id, trna_id, start, stop, trna_type, anti_codon, intron_begin, bounds_end, score, note)}')
 
             start, stop, strand = int(start), int(stop), bc.STRAND_FORWARD
             if(start > stop):  # reverse
@@ -90,27 +93,35 @@ def predict_t_rnas(data: dict, sequences_path: Path):
             trna['gene'] = None
             trna['product'] = 'tRNA-Xxx'
             if(trna_type != 'Undet' and trna_type != 'Sup'):
+                log.info(f'getting AA code')
                 aa_code = AMINO_ACID_DICT.get(trna_type.lower(), ('', None))[0]
+                log.info(f'{aa_code = }')
                 trna['gene'] = f'trn{aa_code}'
                 trna['product'] = f'tRNA-{trna_type}({anti_codon.lower()})'
                 trna['amino_acid'] = trna_type
                 trna['anti_codon'] = anti_codon.lower()
 
             if('pseudo' in note):
+                log.info(f'trna feature is a pseudogene')
                 trna[bc.PSEUDOGENE] = True
 
             trna['score'] = float(score)
-
+            log.info(f'currrent trna: {trna = }')
+            log.info(f'extracting feature sequence')
             nt = bu.extract_feature_sequence(trna, sequences[sequence_id])  # extract nt sequences
             trna['nt'] = nt
 
+            log.info(f'adding dbxrefs')
             trna['db_xrefs'] = []
             so_term = AMINO_ACID_DICT.get(trna_type.lower(), ('', None))[1]
             if(so_term):
                 trna['db_xrefs'].append(so_term.id)
 
+            log.info(f'adding entry to trna dict')
             key = f'{sequence_id}.trna{trna_id}'
+            log.info(f'{key = }')
             trnas[key] = trna
+            log.info(f'added entry to tnra dict')
             log.info(
                 'seq=%s, start=%i, stop=%i, strand=%s, gene=%s, product=%s, score=%1.1f, nt=[%s..%s]',
                 trna['sequence'], trna['start'], trna['stop'], trna['strand'], trna.get('gene', ''), trna['product'], trna['score'], nt[:10], nt[-10:]
