@@ -1,0 +1,38 @@
+FROM mambaorg/micromamba:2.0.2-ubuntu24.04
+# using base from https://github.com/mamba-org/micromamba-docker
+
+# SysBio's Bakta tag
+ARG BAKTA_TAG
+
+ENV PATH="/opt/conda/bin:${PATH}"
+
+LABEL org.opencontainers.image.authors="nepotlet@gmail.com"
+LABEL org.opencontainers.image.documentation='https://github.com/sysbio-vo/bakta/readme.md'
+LABEL org.opencontainers.image.title='Bakta fork for Pannotator'
+LABEL org.opencontainers.image.description='Bakta fork for pangenome-based annotation tool `Pannotator` by IMBG NASU and Wellcome Sanger Institute'
+
+USER root
+
+ARG DEBIAN_FRONTEND=noninteractive
+RUN apt update \
+    && apt install -y --no-install-recommends wget tar ca-certificates procps \
+    && apt clean \
+    && rm -rf /var/lib/apt/lists/*
+
+USER $MAMBA_USER
+
+RUN wget --progress dot:giga -O /tmp/bakta-pannotator-${BAKTA_TAG}.tar.gz \
+        https://github.com/sysbio-vo/bakta/archive/refs/tags/v${BAKTA_TAG}.tar.gz \
+    && tar -xzf /tmp/bakta-pannotator-${BAKTA_TAG}.tar.gz -C /tmp \
+    && TAG_SAFE=$(echo ${BAKTA_TAG} | tr '+' '-') \
+    && mv /tmp/bakta-${TAG_SAFE} /tmp/bakta-${BAKTA_TAG} \
+    && chown $MAMBA_USER:$MAMBA_USER /tmp/bakta-${BAKTA_TAG}/
+
+RUN sed -i '/- defaults/d' /tmp/bakta-${BAKTA_TAG}/environment.yml
+RUN echo "  - python=3.11" >> /tmp/bakta-${BAKTA_TAG}/environment.yml
+
+RUN micromamba install -y -n base -f /tmp/bakta-${BAKTA_TAG}/environment.yml \
+    && pip install --no-cache-dir /tmp/bakta-${BAKTA_TAG} \
+    && micromamba clean --all --yes \
+    && rm -rf /tmp/bakta-${BAKTA_TAG} \
+    && rm /tmp/bakta-pannotator-${BAKTA_TAG}.tar.gz
