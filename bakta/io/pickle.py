@@ -1,6 +1,7 @@
 import pickle
 import hashlib
 import logging
+import json
 
 from collections import OrderedDict
 from pathlib import Path
@@ -14,7 +15,47 @@ import bakta.utils as bu
 log = logging.getLogger('PICKLE')
 
 
-def write_pickle(data: dict, pickle_path: Path):
+def convert_bytes(obj):
+    if isinstance(obj, bytes):
+        return obj.hex() # aa_hexdigest
+    if isinstance(obj, dict):
+        return {convert_bytes(k): convert_bytes(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [convert_bytes(x) for x in obj]
+    return obj
+
+def write_json(data: dict, outpath: Path):
+    """
+    Write json file with all available data.
+    
+    Args:
+        data: Main data dictionary containing genome info, stats, cds features
+        outpath: Output path for pickle file
+    """
+    
+    with outpath.open('w') as fh:
+        json.dump(convert_bytes(data), fh, indent=4)
+
+def load_json(inpath: Path, log: logging.Logger) -> dict:
+    """
+    Load pickle file with all available data.
+    
+    Args:
+        pickle_path: Input path for pickle file
+        log: Logger for logging messages
+    
+    Returns:
+        Data dictionary containing genome info, stats, features
+    """
+    try:
+        with open(inpath, 'r') as fh:
+            data = json.load(fh)
+        return data
+    except Exception:
+        log.error(f'Failed to load json: {inpath}')
+    
+
+def write_pickle_internal(data: dict, pickle_path: Path):
     """
     Write pickle file with all available data.
     
@@ -27,7 +68,7 @@ def write_pickle(data: dict, pickle_path: Path):
         pickle.dump(data, fh, protocol=pickle.HIGHEST_PROTOCOL)
     
 
-def load_pickle(pickle_path: Path, log: logging.Logger) -> dict:
+def load_pickle_internal(pickle_path: Path, log: logging.Logger) -> dict:
     """
     Load pickle file with all available data.
     
@@ -44,6 +85,25 @@ def load_pickle(pickle_path: Path, log: logging.Logger) -> dict:
         return data
     except Exception:
         log.error(f'Failed to load pickle: {pickle_path}')
+
+
+def write_pickle(data: dict, pickle_path: Path, serializer: str = 'pickle'):   
+    match serializer:
+        case 'pickle':
+            write_pickle_internal(data, pickle_path)
+        case 'json':
+            write_json(data, pickle_path)
+        case _:
+            log.error(f'Serializer {serializer} is not a valid option. Choose from `pickle` and `json`')
+
+def load_pickle(pickle_path: Path, log: logging.Logger, serializer: str = 'pickle') -> dict:
+    match serializer:
+        case 'pickle':
+            return load_pickle_internal(pickle_path, log)
+        case 'json':
+            return load_json(pickle_path, log)
+        case _:
+            log.error(f'Serializer {serializer} is not a valid option. Choose from `pickle` and `json`')
 
 def _prepare_features(feats: list[dict]) -> list[dict]:
     out = []
