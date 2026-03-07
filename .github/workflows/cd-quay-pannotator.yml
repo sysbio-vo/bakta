@@ -30,6 +30,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           file: ./Dockerfile_pannotator
+          platforms: linux/amd64
           push: true
           build-args: |
             BAKTA_TAG=${{ steps.prep.outputs.tag_no_v }}
