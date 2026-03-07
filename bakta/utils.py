@@ -77,7 +77,8 @@ def parse_arguments():
     arg_group_io.add_argument('--output', '-o', action='store', default=os.getcwd(), help='Output directory (default = current working directory)')
     arg_group_io.add_argument('--force', '-f', action='store_true', help='Force overwriting existing output folder (except for current working directory)')
     arg_group_io.add_argument('--cds-data', action='store', default=None, dest='cds_data', help='Path to a pickled Bakta data object with CDS to predict pseudogenes')
-    arg_group_io.add_argument('--serializer', action='store', default=cfg.DEFAULT_SERIALIZER, choices=['pickle', 'json'], dest='serializer', help='Serializer method for data dictionary')
+    arg_group_io.add_argument('--serializer', action='store', default=cfg.DEFAULT_SERIALIZER, choices=list(cfg.SERIALIZERS.keys()), dest='serializer', 
+                              help='Serialization method for data dictionary. Available options: %(choices)s (default: %(default)s)')
 
     arg_group_organism = parser.add_argument_group('Organism')
     arg_group_organism.add_argument('--genus', action='store', default=None, help='Genus name')

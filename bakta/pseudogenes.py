@@ -129,9 +129,9 @@ def main_bulk():
     print(f'Saving updated Bakta CDS features')
     for input_filepath, updated_data in sample_to_data.items():
         filepath_basename = os.path.splitext(os.path.basename(input_filepath))[0]
-        output_pickle_path = cfg.output_path.joinpath(f"{filepath_basename}.with_pseudogenes{cfg.SERIALIZATION_EXT.get(cfg.serizalizer, '.data')}")
+        output_pickle_path = cfg.output_path.joinpath(f"{filepath_basename}.with_pseudogenes{cfg.SERIALIZERS[cfg.serizalizer].extension}")
         print(f'\nExport pseudogene search results to: {output_pickle_path}')
-        pickle.write_pickle(updated_data, output_pickle_path)
+        pickle.write_pickle(updated_data, output_pickle_path, cfg.serizalizer)
 
     total_search_time = (cfg.run_end - cfg.run_start).total_seconds()
     print(f'Total elapsed time: {int(total_search_time / 60):01}:{int(total_search_time % 60):02} [mm:ss].')
@@ -283,9 +283,9 @@ def main():
     # - write updated Bakta data object with predicted pseudogenes
     # - remove temp directory
     ############################################################################
-    output_pickle_path = cfg.output_path.joinpath(f"{cfg.prefix}.with_pseudogenes{cfg.SERIALIZATION_EXT.get(cfg.serizalizer, '.data')}")
+    output_pickle_path = cfg.output_path.joinpath(f"{cfg.prefix}.with_pseudogenes{cfg.SERIALIZERS[cfg.serizalizer].extension}")
     print(f'\nExport pseudogene detection results to: {output_pickle_path}')
-    pickle.write_pickle(data, output_pickle_path)
+    pickle.write_pickle(data, output_pickle_path, cfg.serizalizer)
 
     print(f'Pseudogene annotation successfully finished in {int(run_duration / 60):01}:{int(run_duration % 60):02} [mm:ss].')
 

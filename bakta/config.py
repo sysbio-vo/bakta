@@ -4,7 +4,8 @@ import os
 import re
 import sys
 import tempfile
-from collections import defaultdict
+from dataclasses import dataclass
+from typing import Callable
 
 from argparse import Namespace
 from datetime import datetime
@@ -12,6 +13,7 @@ from pathlib import Path
 
 import bakta
 import bakta.constants as bc
+import bakta.io.pickle as bakta_pickle
 
 
 PLASMID_NAME_PATTERN = re.compile(r'p[a-zA-Z0-9\._]{1,19}')
@@ -92,13 +94,28 @@ cds_pickle = None
 rna_pickle = None
 
 # serialization format for data dictionaries
-DEFAULT_SERIALIZER = 'pickle'
-serizalizer = DEFAULT_SERIALIZER
 
-SERIALIZATION_EXT = {
-    'pickle': '.pkl',
-    'json': '.json'
+@dataclass
+class Serializer:
+    extension: str
+    writer: Callable
+    reader: Callable
+
+SERIALIZERS = {
+    "pickle": Serializer(
+        extension=".pkl",
+        writer=bakta_pickle.write_pickle_internal,
+        reader=bakta_pickle.load_pickle_internal
+    ), 
+    "json": Serializer(
+        extension=".json",
+        writer=bakta_pickle.write_json,
+        reader=bakta_pickle.load_json
+    ),
 }
+
+DEFAULT_SERIALIZER = "pickle"
+serizalizer = DEFAULT_SERIALIZER
 
 run_start = datetime.now()
 run_end = None

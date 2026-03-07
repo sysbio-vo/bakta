@@ -86,24 +86,17 @@ def load_pickle_internal(pickle_path: Path, log: logging.Logger) -> dict:
     except Exception:
         log.error(f'Failed to load pickle: {pickle_path}')
 
-
-def write_pickle(data: dict, pickle_path: Path, serializer: str = 'pickle'):   
-    match serializer:
-        case 'pickle':
-            write_pickle_internal(data, pickle_path)
-        case 'json':
-            write_json(data, pickle_path)
-        case _:
-            log.error(f'Serializer {serializer} is not a valid option. Choose from `pickle` and `json`')
+def write_pickle(data: dict, pickle_path: Path, serializer: str = 'pickle'):
+    try:
+        cfg.SERIALIZERS[serializer].writer(data, pickle_path)
+    except KeyError:
+        raise ValueError(f"Unknown serializer: {serializer}")
 
 def load_pickle(pickle_path: Path, log: logging.Logger, serializer: str = 'pickle') -> dict:
-    match serializer:
-        case 'pickle':
-            return load_pickle_internal(pickle_path, log)
-        case 'json':
-            return load_json(pickle_path, log)
-        case _:
-            log.error(f'Serializer {serializer} is not a valid option. Choose from `pickle` and `json`')
+    try:
+        return cfg.SERIALIZERS[serializer].reader(pickle_path, log)
+    except KeyError:
+        raise ValueError(f"Unknown serializer: {serializer}")
 
 def _prepare_features(feats: list[dict]) -> list[dict]:
     out = []
@@ -127,8 +120,8 @@ def merge_precomputed_cds_and_rna(data: dict, cds_pkl_path, rna_pkl_path, log) -
         rna_pkl_path: Path to pickle file containing precomputed RNA features
         log: Logger for logging messages
     """
-    cds_obj = load_pickle(cds_pkl_path, log)
-    rna_obj = load_pickle(rna_pkl_path, log)
+    cds_obj = load_pickle(cds_pkl_path, log, cfg.serizalizer)
+    rna_obj = load_pickle(rna_pkl_path, log, cfg.serizalizer)
 
     cds_feats = cds_obj.get('features', [])
     rna_feats = rna_obj.get('features', [])
