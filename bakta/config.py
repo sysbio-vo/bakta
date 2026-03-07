@@ -4,6 +4,7 @@ import os
 import re
 import sys
 import tempfile
+from collections import defaultdict
 
 from argparse import Namespace
 from datetime import datetime
@@ -90,6 +91,15 @@ sorf_extra = False
 cds_pickle = None
 rna_pickle = None
 
+# serialization format for data dictionaries
+DEFAULT_SERIALIZER = 'pickle'
+serizalizer = DEFAULT_SERIALIZER
+
+SERIALIZATION_EXT = {
+    'pickle': '.pkl',
+    'json': '.json'
+}
+
 run_start = datetime.now()
 run_end = None
 
@@ -136,6 +146,10 @@ def setup(args):
     rna_pickle = getattr(args, "rna_pickle", None)
     log.info('cds-pickle=%s', cds_pickle)
     log.info('rna-pickle=%s', rna_pickle)
+
+    global serizalizer
+    serizalizer = getattr(args, "serializer", DEFAULT_SERIALIZER)
+    log.info('serizalizer=%s', serizalizer)
 
     # input / output path configurations
     global db_path, db_info, tmp_path, genome_path, min_sequence_length, prefix, output_path, force

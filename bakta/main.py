@@ -96,6 +96,7 @@ def setup_and_log(args) -> logging.Logger:
         if(cfg.skip_filter): print(f'\tskip feature overlap filters: {cfg.skip_filter}')
         if(cfg.skip_plot): print(f'\tskip plot: {cfg.skip_plot}')
         if(cfg.cds_only): print(f'\tCDS prediction only: {cfg.cds_only}')
+        if(cfg.serizalizer): print(f'\Serialization method for data: {cfg.serizalizer}')
         print()
     
     if(cfg.debug):
@@ -651,7 +652,7 @@ def write_outputs(data: dict, features: list, features_by_sequence: dict, cdss: 
     tsv_path = cfg.output_path.joinpath(f'{cfg.prefix}.inference.tsv')
     tsv.write_feature_inferences(data['sequences'], features_by_sequence, tsv_path)
 
-    pickle_path = cfg.output_path.joinpath(f'{cfg.prefix}.full.pkl')
+    pickle_path = cfg.output_path.joinpath(f"{cfg.prefix}.full{cfg.SERIALIZATION_EXT.get(cfg.serizalizer, '.data')}")
     pickle.write_pickle(data, pickle_path)
 
     if(cfg.skip_plot  or  cfg.meta):
@@ -735,7 +736,7 @@ def write_cds_prediction_outputs(data: dict, sequences: list, cdss: list):
             locus_nr += inc
 
     print('\tpickle...')
-    pickle_path = cfg.output_path.joinpath(f'{cfg.prefix}.cds-only.pkl')
+    pickle_path = cfg.output_path.joinpath(f"{cfg.prefix}.cds-only{cfg.SERIALIZATION_EXT.get(cfg.serizalizer, '.data')}")
     pickle.write_pickle(data, pickle_path)
 
     print('\ttranslated CDS sequences...')
@@ -749,7 +750,7 @@ def write_rna_only_outputs(data: dict, rna_features: list):
     print(f'\nExport RNA-only prediction results to: {cfg.output_path}')
 
     print('\tpickle...')
-    pickle_path = cfg.output_path.joinpath(f'{cfg.prefix}.rna-only.pkl')
+    pickle_path = cfg.output_path.joinpath(f"{cfg.prefix}.rna-only{cfg.SERIALIZATION_EXT.get(cfg.serizalizer, '.data')}")
     pickle.write_pickle(data, pickle_path)
 
     print('\tfeature nucleotide sequences...')
@@ -785,7 +786,7 @@ def write_sorf_extra_outputs(data: dict, features_by_sequence: dict):
     gff.write_features(data, features_by_sequence, gff3_path)
 
     print('\tpickle...')
-    pickle_path = cfg.output_path.joinpath(f'{cfg.prefix}.sorf-extra.pkl')
+    pickle_path = cfg.output_path.joinpath(f"{cfg.prefix}.sorf-extra{cfg.SERIALIZATION_EXT.get(cfg.serizalizer, '.data')}")
     pickle.write_pickle(data, pickle_path)
 
 
@@ -811,7 +812,7 @@ def run_pipeline(args):
         # data['features'].extend(cdss)
 
         # write_cds_prediction_outputs(data, sequences, cdss) # NOTE: writes to cfg.output_path
-        pickle_path = cfg.output_path.joinpath(f'{cfg.prefix}.with_pseudogenes.pkl')
+        pickle_path = cfg.output_path.joinpath(f"{cfg.prefix}.with_pseudogenes{cfg.SERIALIZATION_EXT.get(cfg.serizalizer, '.data')}")
         pickle.write_pickle(data, pickle_path)
         return
 
