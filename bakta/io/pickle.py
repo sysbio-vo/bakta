@@ -3,9 +3,8 @@ import hashlib
 import logging
 import json
 
-from collections import OrderedDict
 from pathlib import Path
-from typing import Sequence
+from typing import Iterable
 
 import bakta.constants as bc
 import bakta.config as cfg
@@ -110,7 +109,7 @@ def _prepare_features(feats: list[dict]) -> list[dict]:
     return out
 
 
-def merge_precomputed_cds_and_rna(data: dict, cds_pkl_path, rna_pkl_path, log) -> None:
+def merge_feature_annotation_datas(data: dict, pickles_to_merge: Iterable[str], log) -> None:
     """
     Merge precomputed CDS and RNA features from pickle files into main data dictionary.
     
@@ -120,27 +119,16 @@ def merge_precomputed_cds_and_rna(data: dict, cds_pkl_path, rna_pkl_path, log) -
         rna_pkl_path: Path to pickle file containing precomputed RNA features
         log: Logger for logging messages
     """
-    cds_obj = load_pickle(cds_pkl_path, log, cfg.serizalizer)
-    rna_obj = load_pickle(rna_pkl_path, log, cfg.serizalizer)
+    pickle_datas = [load_pickle(pkl_path, log, cfg.serizalizer) for pkl_path in pickles_to_merge]
+    pickle_features = [pkl_obj.get('features', []) for pkl_obj in pickle_datas]
 
-    cds_feats = cds_obj.get('features', [])
-    rna_feats = rna_obj.get('features', [])
+    num_features_before_merge = len(data['features'])
 
-    rna_feats = [f for f in rna_feats if isinstance(f, dict) and f.get("type") != bc.FEATURE_CDS]
-    cds_feats = [f for f in cds_feats if isinstance(f, dict) and f.get("type") == bc.FEATURE_CDS]
+    for pkl_feat in pickle_features:
+        pkl_feat = _prepare_features(pkl_feat)
+        data['features'].extend(pkl_feat) # assuming pickle_features constitutes a disjoint union of features of all types
 
-    rna_feats = _prepare_features(rna_feats)
-    cds_feats = _prepare_features(cds_feats)
-
-    data['features'].extend(cds_feats)
-    data['features'].extend(rna_feats)
-
-    log.info(
-            "merged features: rna=%d, cds=%d, total=%d",
-            len(rna_feats),
-            len(cds_feats),
-            len(data["features"]),
-        )
+    log.info(f"merged features: added={num_features_before_merge}, total={len(data['features'])}")
 
 
 # TODO: replace everywhere by `load_pickle`

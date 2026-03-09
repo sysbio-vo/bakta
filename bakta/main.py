@@ -879,10 +879,9 @@ def run_pipeline(args):
         
         print('sORF + extra mode: importing existing CDS and RNA annotations to predict sORFs...')  
 
-        pickle.merge_precomputed_cds_and_rna(
+        pickle.merge_feature_annotation_datas(
             data,
-            cfg.cds_pickle,
-            cfg.rna_pickle,
+            [cfg.cds_pickle, cfg.rna_pickle],
             log
         )
 
