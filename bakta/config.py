@@ -32,6 +32,7 @@ debug = None
 # input / output configuration
 version = bakta.__version__
 db_path = None
+db_antifam = None
 db_info = None
 tmp_path = None
 genome_path = None
@@ -168,9 +169,15 @@ def setup(args):
     serizalizer = getattr(args, "serializer", DEFAULT_SERIALIZER)
     log.info('serizalizer=%s', serizalizer)
 
+    global db_antifam
+    db_antifam = getattr(args, "db_antifam", None)
+    log.info(f"db_antifam={db_antifam}")
+
     # input / output path configurations
     global db_path, db_info, tmp_path, genome_path, min_sequence_length, prefix, output_path, force
-    db_path = check_db_path(args)
+    # bakta.db is not required for Pyrodigal or RNA search tools
+    if (cds_only and not db_antifam) or (not cds_only):
+        db_path = check_db_path(args)
     tmp_path = check_tmp_path(args)
 
     try:

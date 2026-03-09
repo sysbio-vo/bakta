@@ -72,6 +72,7 @@ def parse_arguments():
 
     arg_group_io = parser.add_argument_group('Input / Output')
     arg_group_io.add_argument('--db', '-d', action='store', default=None, help='Database path (default = <bakta_path>/db). Can also be provided as BAKTA_DB environment variable.')
+    arg_group_io.add_argument('--db-antifam', action='store', dest='db_antifam', default=None, help='Antifam database path')
     arg_group_io.add_argument('--min-contig-length', '-m', action='store', type=int, default=1, dest='min_contig_length', help='Minimum contig/sequence size (default = 1; 200 in compliant mode)')
     arg_group_io.add_argument('--prefix', '-p', action='store', default=None, help='Prefix for output files')
     arg_group_io.add_argument('--output', '-o', action='store', default=os.getcwd(), help='Output directory (default = current working directory)')
@@ -250,7 +251,7 @@ def test_dependencies():
     if(cfg.skip_crispr is not None and cfg.skip_crispr is False):
         test_dependency(DEPENDENCY_PILERCR)
 
-    if(cfg.skip_cds is not None and cfg.skip_cds is False):
+    if(cfg.skip_cds is not None and cfg.skip_cds is False and not cfg.cds_only):
         test_dependency(DEPENDENCY_PYRODIGAL)
         test_dependency(DEPENDENCY_AMRFINDERPLUS)
 

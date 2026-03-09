@@ -54,13 +54,19 @@ def setup_and_log(args) -> logging.Logger:
     # - test binary dependencies
     ############################################################################
     cfg.setup(args)  # check parameters and prepare global configuration
-    cfg.db_info = db.check(cfg.db_path)
+    if (cfg.cds_only and not cfg.db_antifam) or (not cfg.cds_only):
+        cfg.db_info = db.check(cfg.db_path)
     bu.test_dependencies()
     if(cfg.verbose):
         print(f'Bakta v{cfg.version}')
         print('Options and arguments:')
         print(f'\tinput: {cfg.genome_path}')
-        print(f"\tdb: {cfg.db_path}, version {cfg.db_info['major']}.{cfg.db_info['minor']}, {cfg.db_info['type']}")
+        if cfg.db_path:
+            print(f"\tdb: {cfg.db_path}, version {cfg.db_info['major']}.{cfg.db_info['minor']}, {cfg.db_info['type']}")
+        else:
+            print(f"\tdb: {cfg.db_path} (not used for the specificed execution mode)")
+        if cfg.db_antifam:
+            print(f"\tdb_antifam: {cfg.db_antifam}")
         if(cfg.replicons): print(f'\treplicon table: {cfg.replicons}')
         if(cfg.prodigal_tf): print(f'\tprodigal training file: {cfg.prodigal_tf}')
         if(cfg.regions): print(f'\tregion table: {cfg.regions}')
@@ -95,7 +101,7 @@ def setup_and_log(args) -> logging.Logger:
         if(cfg.skip_ori): print(f'\tskip oriC/V/T: {cfg.skip_ori}')
         if(cfg.skip_filter): print(f'\tskip feature overlap filters: {cfg.skip_filter}')
         if(cfg.skip_plot): print(f'\tskip plot: {cfg.skip_plot}')
-        if(cfg.cds_only): print(f'\tCDS prediction only: {cfg.cds_only}')
+        if(cfg.cds_only): print(f'\tCDS prediction (without annotation) only: {cfg.cds_only}')
         if(cfg.serizalizer): print(f'\Serialization method for data: {cfg.serizalizer}')
         print()
     
