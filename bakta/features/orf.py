@@ -26,7 +26,10 @@ def detect_spurious(orfs: Sequence[dict]):
         antifam_path = cfg.db_path.joinpath('antifam')
     else:
         log.error(f"No antifam path was provided, spurious CDS are NOT discarded")
-        return 
+        return
+    
+    log.info(f"{antifam_path=}")
+
     with pyhmmer.plan7.HMMFile(antifam_path, alphabet=alphabet) as hmm_fh:
         for top_hits in pyhmmer.hmmsearch(hmm_fh, proteins, bit_cutoffs='gathering', cpus=cfg.threads):
             for hit in top_hits:

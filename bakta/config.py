@@ -33,6 +33,12 @@ debug = None
 version = bakta.__version__
 db_path = None
 db_antifam = None
+
+db_rrna = None
+db_ncrna = None
+db_ncrna_regions = None
+db_rfam2go = None
+
 db_info = None
 tmp_path = None
 genome_path = None
@@ -171,12 +177,37 @@ def setup(args):
 
     global db_antifam
     db_antifam = getattr(args, "db_antifam", None)
-    log.info(f"db_antifam={db_antifam}")
+    log.info(f"{db_antifam=}")
+
+    global db_rrna
+    db_rrna = getattr(args, "db_rrna", None)
+    log.info(f"{db_rrna=}")
+
+    global db_ncrna
+    db_ncrna = getattr(args, "db_ncrna", None)
+    log.info(f"{db_ncrna=}")
+
+    global db_ncrna_regions
+    db_ncrna_regions = getattr(args, "db_ncrna_regions", None)
+    log.info(f"{db_ncrna_regions=}")
+
+    global db_rfam2go
+    db_rfam2go = getattr(args, "db_rfam2go", None)
+    log.info(f"{db_rfam2go=}")
 
     # input / output path configurations
     global db_path, db_info, tmp_path, genome_path, min_sequence_length, prefix, output_path, force
     # bakta.db is not required for Pyrodigal or RNA search tools
-    if (cds_only and not db_antifam) or (not cds_only):
+    if cds_only:
+        if db_antifam is not None:
+            db_path = check_db_path(args)
+    elif rna_only:
+        if (db_rrna is None or 
+            db_ncrna is None or 
+            db_ncrna_regions is None or 
+            db_rfam2go is None):
+            db_path = check_db_path(args)
+    else:
         db_path = check_db_path(args)
     tmp_path = check_tmp_path(args)
 

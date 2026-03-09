@@ -72,7 +72,13 @@ def parse_arguments():
 
     arg_group_io = parser.add_argument_group('Input / Output')
     arg_group_io.add_argument('--db', '-d', action='store', default=None, help='Database path (default = <bakta_path>/db). Can also be provided as BAKTA_DB environment variable.')
+
     arg_group_io.add_argument('--db-antifam', action='store', dest='db_antifam', default=None, help='Antifam database path')
+    arg_group_io.add_argument('--db-rrna', action='store', dest='db_rrna', default=None, help='rRNA search covariance model path')
+    arg_group_io.add_argument('--db-ncrna', action='store', dest='db_ncrna', default=None, help='ncRNA-genes database path')
+    arg_group_io.add_argument('--db-ncrna-regions', action='store', dest='db_ncrna_regions', default=None, help='ncRNA-genes database path')
+    arg_group_io.add_argument('--db-rfam2go', action='store', dest='db_rfam2go', default=None, help='db_rfam2go database path to ncRNA prediction')
+
     arg_group_io.add_argument('--min-contig-length', '-m', action='store', type=int, default=1, dest='min_contig_length', help='Minimum contig/sequence size (default = 1; 200 in compliant mode)')
     arg_group_io.add_argument('--prefix', '-p', action='store', default=None, help='Prefix for output files')
     arg_group_io.add_argument('--output', '-o', action='store', default=os.getcwd(), help='Output directory (default = current working directory)')

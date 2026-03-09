@@ -20,6 +20,26 @@ log = logging.getLogger('NC_RNA')
 def predict_nc_rnas(data: dict, sequences_path: Path):
     """Search for non-coding RNA genes."""
 
+    if cfg.db_ncrna is not None:
+        ncrna_path = cfg.db_ncrna
+    elif cfg.db_path is not None:
+        ncrna_path = cfg.db_path.joinpath('ncRNA-genes')
+    else:
+        log.error(f"No ncRNA-genes database path was provided, ncRNA-genes will NOT be detected")
+        raise ValueError(f"No ncRNA-genes database path was provided, ncRNA-genes will NOT be detected")
+    
+    log.info(f"{ncrna_path=}")
+
+    if cfg.db_rfam2go is not None:
+        rfam2go_path = Path(cfg.db_rfam2go).resolve()
+    elif cfg.db_path is not None:
+        rfam2go_path = cfg.db_path.joinpath('rfam-go.tsv')
+    else:
+        log.error(f"No rfam2go path was provided, ncRNA-genes will NOT be detected")
+        raise ValueError(f"No rfam2go path was provided, ncRNA-genes will NOT be detected")
+    
+    log.info(f"{rfam2go_path=}")
+
     output_path = cfg.tmp_path.joinpath('ncrna-genes.tsv')
     cmd = [
         'cmscan',
@@ -34,7 +54,7 @@ def predict_nc_rnas(data: dict, sequences_path: Path):
     if(data['stats']['size'] >= 1000000):
         cmd.append('-Z')
         cmd.append(str(2 * data['stats']['size'] // 1000000))
-    cmd.append(str(cfg.db_path.joinpath('ncRNA-genes')))
+    cmd.append(str(ncrna_path))
     cmd.append(str(sequences_path))
     log.debug('cmd=%s', cmd)
     proc = sp.run(
@@ -51,7 +71,6 @@ def predict_nc_rnas(data: dict, sequences_path: Path):
         raise Exception(f'cmscan error! error code: {proc.returncode}')
 
     rfam2go = {}
-    rfam2go_path = cfg.db_path.joinpath('rfam-go.tsv')
     with rfam2go_path.open() as fh:
         for line in fh:
             (rfam, go) = line.split('\t')

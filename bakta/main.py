@@ -54,8 +54,18 @@ def setup_and_log(args) -> logging.Logger:
     # - test binary dependencies
     ############################################################################
     cfg.setup(args)  # check parameters and prepare global configuration
-    if (cfg.cds_only and not cfg.db_antifam) or (not cfg.cds_only):
+    if cfg.cds_only:
+        if cfg.db_antifam is None:
+            cfg.db_info = db.check(cfg.db_path)
+    elif cfg.rna_only:
+        if (cfg.db_rrna is None or 
+            cfg.db_ncrna is None or 
+            cfg.db_ncrna_regions is None or 
+            cfg.db_rfam2go is None):
+            cfg.db_info = db.check(cfg.db_path)
+    else:
         cfg.db_info = db.check(cfg.db_path)
+        
     bu.test_dependencies()
     if(cfg.verbose):
         print(f'Bakta v{cfg.version}')
@@ -67,6 +77,14 @@ def setup_and_log(args) -> logging.Logger:
             print(f"\tdb: {cfg.db_path} (not used for the specificed execution mode)")
         if cfg.db_antifam:
             print(f"\tdb_antifam: {cfg.db_antifam}")
+        if cfg.db_rrna is not None:
+            print(f"\tdb_rrna: {cfg.db_rrna}")
+        if cfg.db_ncrna is not None:
+            print(f"\tdb_ncrna: {cfg.db_ncrna}")
+        if cfg.db_ncrna_regions is not None:
+            print(f"\tdb_ncrna_regions: {cfg.db_ncrna_regions}")
+        if cfg.db_ncrna is not None:
+            print(f"\tdb_rfam2go: {cfg.db_rfam2go}")
         if(cfg.replicons): print(f'\treplicon table: {cfg.replicons}')
         if(cfg.prodigal_tf): print(f'\tprodigal training file: {cfg.prodigal_tf}')
         if(cfg.regions): print(f'\tregion table: {cfg.regions}')
@@ -102,7 +120,7 @@ def setup_and_log(args) -> logging.Logger:
         if(cfg.skip_filter): print(f'\tskip feature overlap filters: {cfg.skip_filter}')
         if(cfg.skip_plot): print(f'\tskip plot: {cfg.skip_plot}')
         if(cfg.cds_only): print(f'\tCDS prediction (without annotation) only: {cfg.cds_only}')
-        if(cfg.serizalizer): print(f'\Serialization method for data: {cfg.serizalizer}')
+        if(cfg.serizalizer): print(f'\tSerialization method for data: {cfg.serizalizer}')
         print()
     
     if(cfg.debug):

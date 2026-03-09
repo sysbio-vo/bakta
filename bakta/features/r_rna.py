@@ -20,6 +20,16 @@ log = logging.getLogger('R_RNA')
 def predict_r_rnas(data: dict, sequences_path: Path):
     """Search for ribosomal RNA sequences."""
 
+    if cfg.db_rrna is not None:
+        rrna_path = cfg.db_rrna
+    elif cfg.db_path is not None:
+        rrna_path = cfg.db_path.joinpath('rRNA')
+    else:
+        log.error(f"No rRNA covariance model path was provided, rRNA features will NOT be detected")
+        raise ValueError(f"No rRNA covariance model path was provided, rRNA features will NOT be detected")
+    
+    log.info(f"{rrna_path=}")
+
     output_path = cfg.tmp_path.joinpath('rrna.tsv')
     cmd = [
         'cmscan',
@@ -34,7 +44,7 @@ def predict_r_rnas(data: dict, sequences_path: Path):
     if(data['stats']['size'] >= 1000000):
         cmd.append('-Z')
         cmd.append(str(2 * data['stats']['size'] // 1000000))
-    cmd.append(str(cfg.db_path.joinpath('rRNA')))
+    cmd.append(str(rrna_path))
     cmd.append(str(sequences_path))
     log.debug('cmd=%s', cmd)
     proc = sp.run(
