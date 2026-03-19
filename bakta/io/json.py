@@ -19,6 +19,8 @@ def write_json(data: dict, features: Sequence[dict], json_path: Path):
     # clean feature attributes
     for feat in features:
         if(feat['type'] == bc.FEATURE_CDS or feat['type'] == bc.FEATURE_SORF):
+
+            # TODO Pannotator: maybe don't pop the digest?
             feat.pop('aa_digest')  # remove binary aa digest before JSON serialization
 
             # DON'T if you'd like to reuse those annotatations for bulk pseudogene search

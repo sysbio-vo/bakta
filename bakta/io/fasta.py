@@ -27,7 +27,17 @@ def import_sequences(sequences_path: Path, is_genomic: bool=True, is_dna: bool=T
                 'id': record.id,
                 'description': record.description.split(' ', maxsplit=1)[1] if ' ' in record.description else ''
             }
-            
+
+            # TODO Panotator: can the same sequence be truncated in one sample but not in another?
+            # if yes, then this approach will not work correctly as the protein will be exclusively marked as truncated
+            # causing Dbxrefs mismatch in the other sample annotation for this protein
+            try:
+                truncated = sequence['description'].split(' ')
+                if len(truncated) == 2 and truncated[1] != bc.CDS_NOT_TRUNCATED:
+                    sequence['truncated'] = truncated[1]
+            except Exception as e:
+                log.info(f"Couldn't parse information from input FASTA whether provided sequence {sequence['id']} is truncated: {e}")
+
             raw_sequence = str(record.seq).upper()
             if('-' in raw_sequence):
                 dash_count = raw_sequence.count('-')
@@ -89,7 +99,11 @@ def write_faa(features: Sequence[dict], faa_path: Path):
     with faa_path.open('wt') as fh:
         for feat in features:
             if(feat['type'] == bc.FEATURE_CDS or feat['type'] == bc.FEATURE_SORF):
-                fh.write(f">{feat['locus']} {feat['product']}\n{feat['aa']}\n")
+                # TODO Pannotator: we need to store the mapping to samples in which the CDS region was truncated
+                # currently if CDS is marked as truncated in at least one sample, the others will get the same annotation
+                # even if the CDS of interest is not truncated there
+                truncated_cds = feat['truncated'] if 'truncated' in feat else bc.CDS_NOT_TRUNCATED # is CDS truncated or not
+                fh.write(f">{feat['locus']} {feat['product']} {truncated_cds}\n{feat['aa']}\n")
 
 
 def write_ffn(features: Sequence[dict], ffn_path: Path):

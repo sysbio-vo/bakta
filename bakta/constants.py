@@ -31,6 +31,7 @@ HYPOTHETICAL_PROTEIN = 'hypothetical protein'  # hypothetical protein product de
 CDS_MAX_OVERLAPS = 30  # max overlap [bp] allowed for user-provided/de novo-predicted CDS overlaps
 CDS_MAX_LENGTH = 50000 * 3  # max length [bp] allowed for predicted CDS
 CDS_SOURCE_USER = 'user-provided'
+CDS_NOT_TRUNCATED = 'not-truncated'
 
 
 ############################################################################
