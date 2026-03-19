@@ -36,6 +36,7 @@ import bakta.ips as ips
 import bakta.psc as psc
 import bakta.pscc as pscc
 import bakta.plot as plot
+import bakta.so as so
 
 
 def setup_and_log(args) -> logging.Logger:
@@ -479,6 +480,30 @@ def predict_sorfs(data: dict, log: logging.Logger):
     print(f'\tfiltered sORFs: {len(sorfs_filtered)}')
 
 
+def remove_redundant_sorf_dbxref(data: dict, log: logging.Logger):
+    # TODO: refactor the annotation process to avoid using this function
+
+    ############################################################################
+    # Pannotator-specific !!! 
+    # Remove so.SO_SORF.id from the db_xrefs list of the final sORF features after filtering and 
+    # overlaps resolution. This is needed to ensure the output of Pannotator matches native Bakta's
+    # result
+    ############################################################################
+    
+    count = 0
+    for feature in data['features']:
+        if feature['type'] != bc.FEATURE_SORF:
+            continue
+        print(feature)
+        print(feature['db_xrefs'])
+        print(set(feature['db_xrefs']))
+        if 'db_xrefs' in feature:
+            db_xrefs_set = set(feature['db_xrefs'])
+            db_xrefs_set.remove(so.SO_SORF.id)
+            feature['db_xrefs'] = sorted(list(db_xrefs_set))
+            count += 1
+    print(f'\rrefined db_xrefs for {count} sORFs')
+
 def annotate_gaps(data: dict, log: logging.Logger):
     ############################################################################
     # gap annotation
@@ -868,6 +893,9 @@ def run_pipeline(args):
         apply_overlap_filters(data)
         features, features_by_sequence = create_annotation(data, sequences, log)
         improve_annotations(features)
+
+        # TODO: optimise this step, because tbh it's a monkey patch
+        # remove_redundant_sorf_dbxref(data, log)
 
         cdss = [feat for feat in data['features'] if feat['type'] == bc.FEATURE_CDS]
         write_sorf_extra_outputs(data, features_by_sequence)

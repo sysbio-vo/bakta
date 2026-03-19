@@ -53,6 +53,10 @@ def combine_annotation(feature: dict):
     genes = set()
     product = None
     db_xrefs = set()
+
+    existing_db_xrefs = feature.get('db_xrefs', [])
+    db_xrefs.update(existing_db_xrefs) # NOTE: this doesn't work correctly
+
     if(pseudogene_pscc):
         pseudogene_pscc_genes = pseudogene_pscc.get('gene', None)
         if(pseudogene_pscc_genes):
