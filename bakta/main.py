@@ -36,6 +36,7 @@ import bakta.ips as ips
 import bakta.psc as psc
 import bakta.pscc as pscc
 import bakta.plot as plot
+import bakta.so as so
 
 
 def setup_and_log(args) -> logging.Logger:
@@ -478,7 +479,6 @@ def predict_sorfs(data: dict, log: logging.Logger):
         anno.combine_annotation(feat)  # combine IPS and PSC annotations
     data['features'].extend(sorfs_filtered)
     print(f'\tfiltered sORFs: {len(sorfs_filtered)}')
-
 
 def annotate_gaps(data: dict, log: logging.Logger):
     ############################################################################

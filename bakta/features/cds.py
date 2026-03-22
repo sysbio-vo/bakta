@@ -753,6 +753,7 @@ def detect_pseudogenes_bulk(candidates: Sequence[dict], seq_to_sample: dict, sam
     elongated_seqs = dict() # aa_hexdigest_`num` as key, elongated sequence as value
     elongated_seq_to_extended_position = defaultdict(list)
     elongated_seq_to_cds_feature_of_origin = defaultdict(list)
+    elongated_nt_hex_to_orig_aa_hex = defaultdict(list)
 
     for cds in candidates:
         # samples_with_cds = seq_to_sample[cds['aa_hexdigest']]
@@ -778,12 +779,9 @@ def detect_pseudogenes_bulk(candidates: Sequence[dict], seq_to_sample: dict, sam
             cds_elongated = get_elongated_cds(cds_feature, seq)
             seq = bu.extract_feature_sequence(cds_elongated, seq)
             orf_key_bulk = orf.get_orf_key_bulk(cds_feature)
+            orf_key_bulk_elongated = bu.calc_aa_hash(seq)[1]
 
-            # revised new approach
-            candidates_extended_positions_seqs[orf_key_bulk].add(seq)
-
-            num_of_elongated_seqs_from_curr_seq = len(candidates_extended_positions_seqs[orf_key_bulk])
-            orf_key_bulk_elongated = f"{orf_key_bulk}_{num_of_elongated_seqs_from_curr_seq}"
+            elongated_nt_hex_to_orig_aa_hex[orf_key_bulk_elongated].append(orf_key_bulk)
 
             if orf_key_bulk_elongated not in elongated_seqs:
                 elongated_seqs[orf_key_bulk_elongated] = seq
@@ -847,11 +845,10 @@ def detect_pseudogenes_bulk(candidates: Sequence[dict], seq_to_sample: dict, sam
     with candidates_blastx_output_path.open() as fh:
         root = ET.parse(fh).getroot()
         for query in root.findall('./BlastOutput_iterations/Iteration'):
-            elongated_aa_identifier = query.find('Iteration_query-def').text
-            aa_identifier = elongated_aa_identifier.split('_')[0] # TODO: create a helper function with a descriptive name for this
+            elongated_nt_hex = query.find('Iteration_query-def').text
 
-            origin_cds_features = elongated_seq_to_cds_feature_of_origin[elongated_aa_identifier]
-            extended_positions_list = elongated_seq_to_extended_position[elongated_aa_identifier]
+            origin_cds_features = elongated_seq_to_cds_feature_of_origin[elongated_nt_hex]
+            extended_positions_list = elongated_seq_to_extended_position[elongated_nt_hex]
 
             for hit in query.findall('./Iteration_hits/Hit'):
                 cluster_id = hit.find('Hit_id').text
@@ -886,6 +883,9 @@ def detect_pseudogenes_bulk(candidates: Sequence[dict], seq_to_sample: dict, sam
 
                         directions = observations.get('directions', [])
                         if bc.FEATURE_END_5_PRIME in directions or bc.FEATURE_END_3_PRIME in directions:
+
+                            aa_identifier = elongated_nt_hex_to_orig_aa_hex[elongated_nt_hex][cds_idx] # TODO: create a helper function with a descriptive name for this
+
                             pseudogene = {
                                 'start': positions['start'],
                                 'stop': positions['stop'],

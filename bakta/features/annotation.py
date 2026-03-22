@@ -53,6 +53,8 @@ def combine_annotation(feature: dict):
     genes = set()
     product = None
     db_xrefs = set()
+
+
     if(pseudogene_pscc):
         pseudogene_pscc_genes = pseudogene_pscc.get('gene', None)
         if(pseudogene_pscc_genes):

@@ -19,17 +19,22 @@ def write_json(data: dict, features: Sequence[dict], json_path: Path):
     # clean feature attributes
     for feat in features:
         if(feat['type'] == bc.FEATURE_CDS or feat['type'] == bc.FEATURE_SORF):
+
+            # TODO Pannotator: maybe don't pop the digest?
             feat.pop('aa_digest')  # remove binary aa digest before JSON serialization
 
-            # remove redundant IPS Dbxrefs
-            ips = feat.get('ips', None)
-            if(ips):
-                ips.pop('db_xrefs')
+            # DON'T if you'd like to reuse those annotatations for bulk pseudogene search
+            # as in the Pannotator workflow
 
-            # remove redundant PSC Dbxrefs
-            psc = feat.get('psc', None)
-            if(psc):
-                psc.pop('db_xrefs')
+            # # remove redundant IPS Dbxrefs
+            # ips = feat.get('ips', None)
+            # if(ips):
+            #     ips.pop('db_xrefs')
+
+            # # remove redundant PSC Dbxrefs
+            # psc = feat.get('psc', None)
+            # if(psc):
+            #     psc.pop('db_xrefs')
 
     version = OrderedDict()
     version['bakta'] = cfg.version
