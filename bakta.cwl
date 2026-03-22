@@ -22,7 +22,7 @@ hints:
   SoftwareRequirement:
     packages:
       bakta:
-        version: [ "1.12.0+pannotator.3" ]
+        version: [ "1.12.0+pannotator.4" ]
         specs: ["https://github.com/oschwengers/bakta"]
   DockerRequirement:
     dockerPull: oschwengers/bakta:v1.12.0
