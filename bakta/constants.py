@@ -59,6 +59,13 @@ PSEUDOGENE_EFFECT_STOP_LOSS = 'stop-loss'
 PSEUDOGENE_EXCEPTION_SELENOCYSTEINE = 'selenocysteine'
 PSEUDOGENE_EXCEPTION_PYROLYSINE = 'pyrolysine'
 
+# tags for Pannotator annotation reuse 
+# These tags are needed to mark hypotheticals 
+# that were processed previously, including
+# both proteins that passed as pseudogenes and 
+# proteins that didn't pass the coverage and identity filters
+HYPOTHETICAL_PROTEIN_NOT_PSEUDOGENE = 'hypothetical_but_not_pseudogene'
+
 
 ############################################################################
 # DB identifiers
