@@ -576,7 +576,8 @@ def improve_annotations(features: list):
     # - select CDS/sORF gene symbols based on adjacent genes
     ############################################################################
     print('improve annotations...')
-    genes_with_improved_symbols = anno.select_gene_symbols([feature for feature in features if feature['type'] in [bc.FEATURE_CDS, bc.FEATURE_SORF]])
+    feature_to_improve = [feature for feature in features if feature['type'] in [bc.FEATURE_CDS, bc.FEATURE_SORF] and not feature.get(bc.DONT_IMPROVE_PANGENOME_ANNO, False)]
+    genes_with_improved_symbols = anno.select_gene_symbols(feature_to_improve)
     print(f'\trevised gene symbols: {len(genes_with_improved_symbols)}')
 
 

@@ -66,6 +66,10 @@ PSEUDOGENE_EXCEPTION_PYROLYSINE = 'pyrolysine'
 # proteins that didn't pass the coverage and identity filters
 HYPOTHETICAL_PROTEIN_NOT_PSEUDOGENE = 'hypothetical_but_not_pseudogene'
 
+# if this field is set to true in the Pannotator pangenome JSON index
+# the annotations (gene symbols) won't be improved by bakta
+DONT_IMPROVE_PANGENOME_ANNO = 'dont_improve'
+
 
 ############################################################################
 # DB identifiers
