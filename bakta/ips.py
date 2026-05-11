@@ -98,7 +98,7 @@ def fetch_db_ips_result(feature: dict):
         rec = c.fetchone()
         c.close()
     elapsed = time.perf_counter() - t0
-    return rec
+    return rec, elapsed
 
 
 def parse_annotation(rec) -> dict:
