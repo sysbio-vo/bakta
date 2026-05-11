@@ -1,4 +1,6 @@
 import logging
+import time
+import statistics
 
 from concurrent.futures import ThreadPoolExecutor
 from typing import Sequence
@@ -27,6 +29,14 @@ def lookup(features: Sequence[dict]):
         features_found = []
         features_not_found = []
         rec_futures = []
+
+        with bu.get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute('EXPLAIN QUERY PLAN select * from ups where hash=?', ('dummy',))
+            plan = c.fetchall()
+            log.warning('UPS EXPLAIN QUERY PLAN: %s', plan)
+            c.close()
+        
         with ThreadPoolExecutor(max_workers=max(10, cfg.threads)) as tpe:  # use min 10 threads for IO bound non-CPU lookups
             for feature in features:
                 if('truncated' not in feature):  # skip truncated CDS
@@ -35,9 +45,13 @@ def lookup(features: Sequence[dict]):
                 else:
                     features_not_found.append(feature)
 
+        hit_times = []
+        miss_times = []
+
         for (feature, future) in rec_futures:
-            rec = future.result()
+            rec, elapsed = future.result()
             if(rec is not None and rec[DB_UPS_COL_LENGTH] == len(feature['aa'])):
+                hit_times.append(elapsed)
                 ups = parse_annotation(rec)
                 feature['ups'] = ups
                 features_found.append(feature)
@@ -46,7 +60,23 @@ def lookup(features: Sequence[dict]):
                     feature['sequence'], feature['start'], feature['stop'], len(feature['aa']), feature['strand'], ups.get(DB_UPS_COL_UNIPARC, ''), ups.get(DB_UPS_COL_UNIREF100, ''), ups.get(DB_UPS_COL_REFSEQ_NRP, '')
                 )
             else:
+                miss_times.append(elapsed)
                 features_not_found.append(feature)
+
+        # log timing summary
+        def fmt(times):
+            if not times:
+                return 'n=0'
+            ms = [t * 1000 for t in times]
+            return (
+                f'n={len(ms)}, '
+                f'mean={statistics.mean(ms):.3f}ms, '
+                f'median={statistics.median(ms):.3f}ms, '
+                f'p95={sorted(ms)[int(len(ms)*0.95)]:.3f}ms, '
+                f'max={max(ms):.3f}ms'
+            )
+        log.warning('UPS hits:   %s', fmt(hit_times))
+        log.warning('UPS misses: %s', fmt(miss_times))
 
         log.info('looked-up=%i', len(features_found))
         return features_found, features_not_found
@@ -56,12 +86,15 @@ def lookup(features: Sequence[dict]):
 
 
 def fetch_db_ups_result(feature: dict):
+    t0 = time.perf_counter()
     with bu.get_db_connection() as conn:
         c = conn.cursor()
         c.execute('select * from ups where hash=?', (feature['aa_digest'],))
         rec = c.fetchone()
         c.close()
-        return rec
+    
+    elapsed = time.perf_counter() - t0
+    return rec, elapsed
 
 
 def parse_annotation(rec: dict) -> dict:
