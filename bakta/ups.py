@@ -33,8 +33,8 @@ def lookup(features: Sequence[dict]):
         with bu.get_db_connection() as conn:
             c = conn.cursor()
             c.execute('EXPLAIN QUERY PLAN select * from ups where hash=?', ('dummy',))
-            plan = c.fetchall()
-            log.warning('UPS EXPLAIN QUERY PLAN: %s', plan)
+            for row in c.fetchall():
+                print(f'UPS QUERY PLAN: id={row[0]} parent={row[1]} detail={row[3]}', flush=True)
             c.close()
         
         with ThreadPoolExecutor(max_workers=max(10, cfg.threads)) as tpe:  # use min 10 threads for IO bound non-CPU lookups

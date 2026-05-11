@@ -34,8 +34,8 @@ def lookup(features: Sequence[dict]) -> Tuple[Sequence[dict], Sequence[dict]]:
         with bu.get_db_connection() as conn:
             c = conn.cursor()
             c.execute('EXPLAIN QUERY PLAN select * from ips where uniref100_id=?', ('dummy',))
-            plan = c.fetchone()
-            log.warning('IPS DB query plan: %s', plan)
+            for row in c.fetchall():
+                print(f'IPS QUERY PLAN: id={row[0]} parent={row[1]} detail={row[3]}', flush=True)
             c.close()
 
         with ThreadPoolExecutor(max_workers=max(10, cfg.threads)) as tpe:  # use min 10 threads for IO bound non-CPU lookups
