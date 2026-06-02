@@ -1,6 +1,8 @@
 import atexit
+import csv
 import logging
 import os
+import pickle as stdlib_pickle
 import sys
 
 from datetime import datetime
@@ -30,21 +32,26 @@ import bakta.pscc as pscc
 log = logging.getLogger('PROTEINS')
 
 
-def main():
-    # parse options and arguments
+def parse_arguments():
     parser = bu.init_parser(sub_command='_proteins')
-    parser.add_argument('input', metavar='<input>', help='Protein sequences in (zipped) fasta format')
-    
+    parser.add_argument('input', metavar='<input>', nargs='?', default=None,
+                        help='Protein sequences in (zipped) fasta format (not required with --alignment)')
+
     arg_group_io = parser.add_argument_group('Input / Output')
     arg_group_io.add_argument('--db', '-d', action='store', default=None, help='Database path (default = <bakta_path>/db). Can also be provided as BAKTA_DB environment variable.')
     arg_group_io.add_argument('--output', '-o', action='store', default=os.getcwd(), help='Output directory (default = current working directory)')
     arg_group_io.add_argument('--prefix', '-p', action='store', default=None, help='Prefix for output files')
     arg_group_io.add_argument('--force', '-f', action='store_true', help='Force overwriting existing output folder')
-    
+
     arg_group_annotation = parser.add_argument_group('Annotation')
     arg_group_annotation.add_argument('--proteins', action='store', default=None, dest='proteins', help='Fasta file of trusted protein sequences')
     arg_group_annotation.add_argument('--hmms', action='store', default=None, dest='hmms', help='HMM file of trusted hidden markov models in HMMER format')
-    
+    mode_group = arg_group_annotation.add_mutually_exclusive_group()
+    mode_group.add_argument('--lookup', action='store_true', default=False,
+                            help='Run UPS/IPS lookup only; outputs PKL (all sequences) and CSV (found sequences with annotations) for downstream clustering and alignment')
+    mode_group.add_argument('--alignment', action='store', default=None, metavar='<pkl>',
+                            help='Run PSC search + expert systems on PKL file produced by --lookup (after user has filtered to unannotated cluster representatives)')
+
     arg_group_general = parser.add_argument_group('General')
     arg_group_general.add_argument('--help', '-h', action='help', help='Show this help message and exit')
     arg_group_general.add_argument('--verbose', '-v', action='store_true', help='Print verbose information')
@@ -52,28 +59,27 @@ def main():
     arg_group_general.add_argument('--threads', '-t', action='store', type=int, default=0, help='Number of threads to use (default = number of available CPUs)')
     arg_group_general.add_argument('--tmp-dir', action='store', default=None, dest='tmp_dir', help='Location for temporary files (default = system dependent auto detection)')
     arg_group_general.add_argument('--version', '-V', action='version', version=f'%(prog)s {cfg.version}')
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    ############################################################################
-    # Setup logging
-    ############################################################################
-    cfg.prefix = args.prefix if args.prefix else Path(args.input).stem
+
+def setup_logging(args) -> Path:
+    if args.alignment:
+        stem = Path(args.alignment).stem
+        cfg.prefix = args.prefix if args.prefix else stem
+    else:
+        cfg.prefix = args.prefix if args.prefix else Path(args.input).stem
     output_path = cfg.check_output_path(args.output, args.force)
     cfg.force = args.force
     log.info('force=%s', args.force)
-    
     bu.setup_logger(output_path, cfg.prefix, args)
     log.info('prefix=%s', cfg.prefix)
     log.info('output=%s', output_path)
+    return output_path
 
-    ############################################################################
-    # Checks and configurations
-    # - check parameters and setup global configuration
-    # - test database
-    # - test binary dependencies
-    ############################################################################
+
+def setup_config(args, output_path: Path) -> Path:
     try:
-        if(args.input == ''):
+        if args.input is None or args.input == '':
             raise ValueError('File path argument must be non-empty')
         aa_path = Path(args.input).resolve()
         cfg.check_readability('proteins', aa_path)
@@ -82,7 +88,47 @@ def main():
         log.error('provided input proteins file not valid! path=%s', args.input)
         sys.exit(f'ERROR: input proteins file ({args.input}) not valid!')
     log.info('input-path=%s', aa_path)
-    
+    _setup_common_config(args)
+    if(cfg.verbose):
+        print(f'Bakta v{cfg.version}')
+        print('Options and arguments:')
+        print(f'\tinput: {aa_path}')
+        print(f"\tdb: {cfg.db_path}, version {cfg.db_info['major']}.{cfg.db_info['minor']}")
+        print(f'\toutput: {cfg.output_path}')
+        if(cfg.force): print(f'\tforce: {cfg.force}')
+        print(f'\ttmp directory: {cfg.tmp_path}')
+        print(f'\tprefix: {cfg.prefix}')
+        print(f'\t# threads: {cfg.threads}')
+    _setup_debug_or_cleanup()
+    return aa_path
+
+
+def setup_config_alignment(args, output_path: Path) -> Path:
+    try:
+        if args.alignment == '':
+            raise ValueError('File path argument must be non-empty')
+        pkl_path = Path(args.alignment).resolve()
+        cfg.check_readability('PKL', pkl_path)
+    except:
+        log.error('provided input PKL file not valid! path=%s', args.alignment)
+        sys.exit(f'ERROR: input PKL file ({args.alignment}) not valid!')
+    log.info('input-pkl-path=%s', pkl_path)
+    _setup_common_config(args)
+    if(cfg.verbose):
+        print(f'Bakta v{cfg.version}')
+        print('Options and arguments:')
+        print(f'\tinput PKL: {pkl_path}')
+        print(f"\tdb: {cfg.db_path}, version {cfg.db_info['major']}.{cfg.db_info['minor']}")
+        print(f'\toutput: {cfg.output_path}')
+        if(cfg.force): print(f'\tforce: {cfg.force}')
+        print(f'\ttmp directory: {cfg.tmp_path}')
+        print(f'\tprefix: {cfg.prefix}')
+        print(f'\t# threads: {cfg.threads}')
+    _setup_debug_or_cleanup()
+    return pkl_path
+
+
+def _setup_common_config(args):
     cfg.check_db_path(args)
     cfg.db_info = db.check(cfg.db_path)
     cfg.check_tmp_path(args)
@@ -105,27 +151,17 @@ def main():
         except:
             log.error('provided HMM file not valid! path=%s', args.hmms)
             sys.exit(f'ERROR: HMM file ({args.hmms}) not valid!')
-    
     bu.test_dependencies()
-    if(cfg.verbose):
-        print(f'Bakta v{cfg.version}')
-        print('Options and arguments:')
-        print(f'\tinput: {aa_path}')
-        print(f"\tdb: {cfg.db_path}, version {cfg.db_info['major']}.{cfg.db_info['minor']}")
-        print(f'\toutput: {cfg.output_path}')
-        if(cfg.force): print(f'\tforce: {cfg.force}')
-        print(f'\ttmp directory: {cfg.tmp_path}')
-        print(f'\tprefix: {cfg.prefix}')
-        print(f'\t# threads: {cfg.threads}')
-    
+
+
+def _setup_debug_or_cleanup():
     if(cfg.debug):
         print(f"\nBakta runs in DEBUG mode! Temporary data will not be destroyed at: {cfg.tmp_path}")
     else:
         atexit.register(bu.cleanup, log, cfg.tmp_path)  # register cleanup exit hook
 
-    ############################################################################
-    # Import proteins
-    ############################################################################
+
+def import_proteins(aa_path: Path) -> list:
     try:
         print('Parse protein sequences...')
         aas = fasta.import_sequences(aa_path, False, False)
@@ -144,17 +180,113 @@ def main():
         aa['strand'] = bc.STRAND_UNKNOWN
         aa['frame'] = 1
         mock_start += 100
-    print('\nStart annotation...')
-    annotate_aa(aas)
-    cfg.run_end = datetime.now()
-    run_duration = (cfg.run_end - cfg.run_start).total_seconds()
+    return aas
 
-    ############################################################################
-    # Write output files
-    # - write comprehensive annotation results as JSON
-    # - write optional output files in TSV, FAA formats
-    # - remove temp directory
-    ############################################################################
+
+def load_proteins_pkl(pkl_path: Path) -> list:
+    print('Load protein sequences from PKL...')
+    with open(pkl_path, 'rb') as fh:
+        aas = stdlib_pickle.load(fh)
+    log.info('loaded sequences=%i', len(aas))
+    print(f'\tloaded: {len(aas)}')
+    return aas
+
+
+def lookup_aa(aas: list) -> list:
+    """Run hash computation and UPS/IPS lookup only. Returns aas found by UPS."""
+    for aa in aas:
+        aa['aa_digest'], aa['aa_hexdigest'] = bu.calc_aa_hash(aa['aa'])
+    if(cfg.db_info['type'] == 'full'):
+        log.debug('lookup AA UPS/IPS')
+        aas_ups, aas_not_found = ups.lookup(aas)
+        aas_ips, tmp = ips.lookup(aas_ups)
+        aas_not_found.extend(tmp)
+        print(f'\tdetected IPSs: {len(aas_ips)}')
+        log.debug('lookup PSC/PSCC annotations for found sequences')
+        psc.lookup(aas_ups)
+        pscc.lookup(aas_ups)
+        return aas_ups
+    else:
+        print('\tskip UPS/IPS detection with light db version')
+        return []
+
+
+def annotate_aa_alignment(aas: list):
+    """Run PSC search + expert systems for aas pre-filtered to unannotated cluster representatives."""
+    if(len(aas) > 0):
+        if(cfg.db_info['type'] == 'full'):
+            log.debug('search PSC')
+            aas_psc, aas_pscc, aas_not_found = psc.search(aas)
+            print(f'\tfound PSCs: {len(aas_psc)}')
+            print(f'\tfound PSCCs: {len(aas_pscc)}')
+        else:
+            log.debug('search PSCC')
+            aas_pscc, aas_not_found = pscc.search(aas)
+            print(f'\tfound PSCCs: {len(aas_pscc)}')
+    print('\tlookup annotations...')
+    psc.lookup(aas)
+    pscc.lookup(aas)
+    print('\tconduct expert systems...')
+    aa_path = cfg.tmp_path.joinpath('aa.faa')
+    orf.write_internal_faa(aas, aa_path)
+    cfg.translation_table = 11
+    expert_amr_found = exp_amr.search(aas, aa_path)
+    print(f'\t\tamrfinder: {len(expert_amr_found)}')
+    diamond_db_path = cfg.db_path.joinpath('expert-protein-sequences.dmnd')
+    expert_aa_found = exp_aa_seq.search(aas, aa_path, 'expert_proteins', diamond_db_path)
+    print(f'\t\tprotein sequences: {len(expert_aa_found)}')
+    if(cfg.user_proteins):
+        log.debug('conduct expert system: user aa seqs')
+        user_aa_path = cfg.tmp_path.joinpath('user-proteins.faa')
+        exp_aa_seq.write_user_protein_sequences(user_aa_path)
+        user_aa_found = exp_aa_seq.search(aas, aa_path, 'user_proteins', user_aa_path)
+        print(f'\t\tuser protein sequences: {len(user_aa_found)}')
+    if(cfg.user_hmms):
+        log.debug('conduct expert system: user HMM')
+        user_hmm_found = exp_aa_hmms.search(aas, cfg.user_hmms)
+        print(f'\t\tuser HMM sequences: {len(user_hmm_found)}')
+    print('\tcombine annotations and mark hypotheticals...')
+    for aa in aas:
+        anno.combine_annotation(aa)
+    hypotheticals = [aa for aa in aas if 'hypothetical' in aa]
+    if(len(hypotheticals) > 0):
+        print(f'\tanalyze hypothetical proteins: {len(hypotheticals)}')
+        pfam_hits = feat_cds.predict_pfam(hypotheticals)
+        print(f'\tdetected Pfam hits: {len(pfam_hits)}')
+        feat_cds.analyze_proteins(hypotheticals)
+        print('\tcalculated proteins statistics')
+
+
+def write_lookup_outputs(aas: list, aas_found: list, output_path: Path, run_duration: float):
+    print(f'\nExport lookup results to: {output_path}')
+    pkl_path = output_path.joinpath(f'{cfg.prefix}.aas.pkl')
+    print(f'\tsequences PKL: {pkl_path}')
+    with open(pkl_path, 'wb') as fh:
+        stdlib_pickle.dump(aas, fh)
+    csv_path = output_path.joinpath(f'{cfg.prefix}.lookup.csv')
+    print(f'\tlookup results (CSV): {csv_path}')
+    with csv_path.open('w', newline='') as fh:
+        writer = csv.writer(fh)
+        writer.writerow(['id', 'aa_hexdigest', 'gene', 'product', 'EC', 'GO', 'COG', 'RefSeq', 'UniParc', 'UniRef'])
+        for aa in aas_found:
+            gene = aa.get('gene', '') or ''
+            db_xrefs = aa.get('db_xrefs', [])
+            writer.writerow([
+                aa['id'],
+                aa.get('aa_hexdigest', ''),
+                gene,
+                aa.get('product', ''),
+                ','.join(x.replace('EC:', '') for x in db_xrefs if 'EC:' in x),
+                ','.join(x for x in db_xrefs if 'GO:' in x),
+                ','.join(x.replace('COG:', '') for x in db_xrefs if 'COG:' in x),
+                ','.join(x.replace('RefSeq:', '') for x in db_xrefs if 'RefSeq:' in x),
+                ','.join(x.replace('UniParc:', '') for x in db_xrefs if 'UniParc:' in x),
+                ','.join(x.replace('UniRef:', '') for x in db_xrefs if 'UniRef' in x),
+            ])
+    print(f'\nLookup finished in {int(run_duration / 60):01}:{int(run_duration % 60):02} [mm:ss].')
+
+
+def write_outputs(aas: list, output_path: Path, run_duration: float):
     for aa in aas:  # reset mock attributes
         aa['start'] = -1
         aa['stop'] = -1
@@ -179,7 +311,7 @@ def main():
     json.write_json({'features': aas}, aas, full_annotations_path)
     hypotheticals_path = output_path.joinpath(f'{cfg.prefix}.hypotheticals.tsv')
     header_columns = ['ID', 'Length', 'Mol Weight [kDa]', 'Iso El. Point', 'Pfam hits']
-    hypotheticals = hypotheticals = [aa for aa in aas if 'hypothetical' in aa]
+    hypotheticals = [aa for aa in aas if 'hypothetical' in aa]
     print(f'\tinformation on hypotheticals (TSV): {hypotheticals_path}')
     tsv.write_protein_features(hypotheticals, header_columns, map_hypothetical_columns, hypotheticals_path)
     aa_output_path = output_path.joinpath(f'{cfg.prefix}.faa')
@@ -277,6 +409,45 @@ def annotate_aa(aas: Sequence[dict]):
         print(f"\tdetected Pfam hits: {len(pfam_hits)}")
         feat_cds.analyze_proteins(hypotheticals)
         print('\tcalculated proteins statistics')
+
+
+def run_pipeline(args):
+    output_path = setup_logging(args)
+    cfg.run_start = datetime.now()
+
+    if args.alignment:
+        pkl_path = setup_config_alignment(args, output_path)
+        aas = load_proteins_pkl(pkl_path)
+        print('\nStart alignment annotation...')
+        annotate_aa_alignment(aas)
+        cfg.run_end = datetime.now()
+        run_duration = (cfg.run_end - cfg.run_start).total_seconds()
+        write_outputs(aas, output_path, run_duration)
+    elif args.lookup:
+        if args.input is None:
+            sys.exit('ERROR: positional input (FASTA) is required with --lookup')
+        aa_path = setup_config(args, output_path)
+        aas = import_proteins(aa_path)
+        print('\nStart lookup...')
+        aas_found = lookup_aa(aas)
+        cfg.run_end = datetime.now()
+        run_duration = (cfg.run_end - cfg.run_start).total_seconds()
+        write_lookup_outputs(aas, aas_found, output_path, run_duration)
+    else:
+        if args.input is None:
+            sys.exit('ERROR: positional input (FASTA) is required')
+        aa_path = setup_config(args, output_path)
+        aas = import_proteins(aa_path)
+        print('\nStart annotation...')
+        annotate_aa(aas)
+        cfg.run_end = datetime.now()
+        run_duration = (cfg.run_end - cfg.run_start).total_seconds()
+        write_outputs(aas, output_path, run_duration)
+
+
+def main():
+    args = parse_arguments()
+    run_pipeline(args)
 
 
 if __name__ == '__main__':
