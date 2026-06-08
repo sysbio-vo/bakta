@@ -85,11 +85,13 @@ def check(db_path: Path) -> dict:
 
     log.info('detected: major=%i, minor=%i, type=%s, date=%s', db_info['major'], db_info['minor'], db_info['type'], db_info['date'])
     if(db_info['major'] < bakta.__db_schema_version__):
-        log.error('wrong database version detected! required=%i, detected=%i', bakta.__db_schema_version__, db_info['major'])
-        sys.exit(f"ERROR: wrong database version detected!\nBakta version {cfg.version} requires database version {bakta.__db_schema_version__}.x, but {db_info['major']}.{db_info['minor']} was detected. Please, update the database from https://doi.org/10.5281/zenodo.4247253")
+        log.warning("You're using an outdated database version! required for this version of Bakta=%i, detected=%i", bakta.__db_schema_version__, db_info['major'])
+        log.warning(f"This would normally be an ERROR: wrong database version detected!\nBakta version {cfg.version} requires database version {bakta.__db_schema_version__}.x, but {db_info['major']}.{db_info['minor']} was detected. \
+                     If you are not intentionally using an old database, please, update the database from https://doi.org/10.5281/zenodo.4247253")
     elif(db_info['major'] > bakta.__db_schema_version__):
-        log.error('wrong database version detected! required=%i, detected=%i', bakta.__db_schema_version__, db_info['major'])
-        sys.exit(f"ERROR: wrong database version detected!\nBakta version {cfg.version} requires database version {bakta.__db_schema_version__}.x, but {db_info['major']}.{db_info['minor']} was detected. Please, update Bakta or download a compatible database version from https://doi.org/10.5281/zenodo.4247253")
+        log.warning('wrong database version detected! required=%i, detected=%i', bakta.__db_schema_version__, db_info['major'])
+        log.warning(f"This would normally be an ERROR: wrong database version detected!\nBakta version {cfg.version} requires database version {bakta.__db_schema_version__}.x, but {db_info['major']}.{db_info['minor']} was detected. \
+                     If you are not intentionally using an old database, please, update Bakta or download a compatible database version from https://doi.org/10.5281/zenodo.4247253")
 
     required_db_files = FILE_NAMES
     required_db_files.append('psc.dmnd' if db_info['type'] == 'full' else 'pscc.dmnd')
