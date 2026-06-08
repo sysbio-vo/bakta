@@ -18,15 +18,25 @@ jobs:
           RAW_TAG=${GITHUB_REF#refs/tags/}
           TAG_NO_V=${RAW_TAG#v}
           CLEAN_TAG=${TAG_NO_V//+/-}
+
+          if [[ "$TAG_NO_V" == *_* ]]; then
+            DEBUG_RELEASE="true"
+          else
+            DEBUG_RELEASE="false"
+          fi
+
           echo "tag=${CLEAN_TAG}" >> $GITHUB_OUTPUT
           echo "tag_no_v=${TAG_NO_V}" >> $GITHUB_OUTPUT
+          echo "debug_release=${DEBUG_RELEASE}" >> $GITHUB_OUTPUT
       - name: Login to Quay.io
         uses: docker/login-action@v3
         with:
           registry: quay.io
           username: ${{ secrets.QUAY_USERNAME }}
           password: ${{ secrets.QUAY_TOKEN }}
-      - name: Build and push Docker image
+
+      - name: Build and push Docker image (latest release)
+        if: steps.prep.outputs.debug_release == 'false'
         uses: docker/build-push-action@v5
         with:
           file: ./Dockerfile_pannotator
@@ -37,3 +47,15 @@ jobs:
           tags: |
             quay.io/d_goryslavets/bakta_pannotator:${{ steps.prep.outputs.tag }}
             quay.io/d_goryslavets/bakta_pannotator:latest
+
+      - name: Build and push Docker image (non-latest debug relase)
+        if: steps.prep.outputs.debug_release == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          file: ./Dockerfile_pannotator
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            BAKTA_TAG=${{ steps.prep.outputs.tag_no_v }}
+          tags: |
+            quay.io/d_goryslavets/bakta_pannotator:${{ steps.prep.outputs.tag }}
