@@ -106,7 +106,7 @@ def main():
             log.error('provided HMM file not valid! path=%s', args.hmms)
             sys.exit(f'ERROR: HMM file ({args.hmms}) not valid!')
     
-    bu.test_dependencies()
+    # bu.test_dependencies() # Pannotator: don't test the dependencies for backward compatibility with previous Bakta releases and databases
     if(cfg.verbose):
         print(f'Bakta v{cfg.version}')
         print('Options and arguments:')

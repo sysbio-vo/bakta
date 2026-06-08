@@ -56,7 +56,7 @@ def setup_and_log(args) -> logging.Logger:
     ############################################################################
     cfg.setup(args)  # check parameters and prepare global configuration
     cfg.db_info = db.check(cfg.db_path)
-    bu.test_dependencies()
+    # bu.test_dependencies()
     if(cfg.verbose):
         print(f'Bakta v{cfg.version}')
         print('Options and arguments:')
