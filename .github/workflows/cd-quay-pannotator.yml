@@ -47,15 +47,3 @@ jobs:
           tags: |
             quay.io/d_goryslavets/bakta_pannotator:${{ steps.prep.outputs.tag }}
             quay.io/d_goryslavets/bakta_pannotator:latest
-
-      - name: Build and push Docker image (non-latest debug relase)
-        if: steps.prep.outputs.debug_release == 'true'
-        uses: docker/build-push-action@v5
-        with:
-          file: ./Dockerfile_pannotator
-          platforms: linux/amd64
-          push: true
-          build-args: |
-            BAKTA_TAG=${{ steps.prep.outputs.tag_no_v }}
-          tags: |
-            quay.io/d_goryslavets/bakta_pannotator:${{ steps.prep.outputs.tag }}
