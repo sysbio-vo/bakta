@@ -113,13 +113,20 @@ def main_bulk():
 
     # get all hypotheticals and save intermediate files to tmp dir
     print('\nFind pseudogene candidates...')
-    bulk_candidates, seq_to_feature, sample_to_feature, seq_to_sample, candidate_to_sample_id = get_bulk_candidates(sample_to_data)
+
+    candidates_search_result = get_bulk_candidates(sample_to_data)
+
+    if candidates_search_result is not None:
+        bulk_candidates, seq_to_feature, sample_to_feature, seq_to_sample, candidate_to_sample_id = candidates_search_result
+    else:
+        log.info(f'No novel pseudogene candidates were detected, returning CDS features as is')
 
     candidates_search_end_time = datetime.now()
     candidates_detection_duration = (candidates_search_end_time - cfg.run_start).total_seconds()
     print(f'Pseudogene candidates search finished in {int(candidates_detection_duration / 60):01}:{int(candidates_detection_duration % 60):02} [mm:ss].')
 
-    bulk_pseudogenes = predict_bulk_pseudogenes(bulk_candidates, seq_to_sample, sample_to_data, seq_to_feature, candidate_to_sample_id) if len(bulk_candidates) > 0 else []
+    if candidates_search_result is not None:
+        bulk_pseudogenes = predict_bulk_pseudogenes(bulk_candidates, seq_to_sample, sample_to_data, seq_to_feature, candidate_to_sample_id) if len(bulk_candidates) > 0 else []
 
     cfg.run_end = datetime.now()
     pseudogene_predicition_duration = (cfg.run_end - candidates_search_end_time).total_seconds()
@@ -158,8 +165,14 @@ def get_bulk_candidates(sample_to_data: dict[str, object]):
     for bakta_pickle_path, data in sample_to_data.items():
 
         for feat in data['features']:
-            if feat['type'] != bc.FEATURE_CDS or 'hypothetical' not in feat or 'edge' in feat or feat.get('start_type', 'Edge') == 'Edge':
+
+            # if hypothetical protein was processed in previous runs, 
+            # but not marked as pseudo, don't perform blast search again
+            if feat['type'] != bc.FEATURE_CDS or 'hypothetical' not in feat or 'edge' in feat or feat.get('start_type', 'Edge') == 'Edge' or bc.PSEUDOGENE in feat or feat.get(bc.HYPOTHETICAL_PROTEIN_NOT_PSEUDOGENE, False):
                 continue
+
+            feat[bc.HYPOTHETICAL_PROTEIN_NOT_PSEUDOGENE] = True # mark hypotheticals (of any kind, even if discarded later) processed by Bakta
+
             sample_to_feature[bakta_pickle_path].append(feat) # will be used to elongate sequences during pseudogene prediction
             seq_to_feature[feat['aa_hexdigest']].append((feat, bakta_pickle_path)) # will be modified in place during pseudogene prediction
             seq_to_sample[feat['aa_hexdigest']].append(bakta_pickle_path)
@@ -169,7 +182,10 @@ def get_bulk_candidates(sample_to_data: dict[str, object]):
             if feat['aa_hexdigest'] not in unique_aa_seqs:
                 unique_hypothetical_features.append(feat)
                 unique_aa_seqs.add(feat['aa_hexdigest'])
-    
+
+    if len(unique_hypothetical_features) == 0:
+        return None
+
     bulk_candidates, candidate_to_sample_id = feat_cds.predict_pseudo_candidates_bulk(unique_hypothetical_features, feature_to_sample_id)
 
     return bulk_candidates, seq_to_feature, sample_to_feature, seq_to_sample, candidate_to_sample_id

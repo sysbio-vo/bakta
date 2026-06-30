@@ -942,7 +942,8 @@ def detect_pseudogenes_bulk(candidates: Sequence[dict], seq_to_sample: dict, sam
                             pass
 
     for cds in candidates:
-        cds.pop('pseudo-inference')
+        for pseudo_cds, _ in seq_to_feature[cds['aa_hexdigest']]:
+            pseudo_cds.pop('pseudo-inference')
     log.info('found: pseudogenes=%i', len(pseudogenes))
     return pseudogenes
 
