@@ -28,8 +28,8 @@ RUN wget --progress dot:giga -O /tmp/bakta-pannotator-${BAKTA_TAG}.tar.gz \
     && mv /tmp/bakta-${TAG_SAFE} /tmp/bakta-${BAKTA_TAG} \
     && chown $MAMBA_USER:$MAMBA_USER /tmp/bakta-${BAKTA_TAG}/
 
+# exclude defaults channel from the YAML
 RUN sed -i '/- defaults/d' /tmp/bakta-${BAKTA_TAG}/environment_frozen.yml
-RUN echo "  - python=3.11" >> /tmp/bakta-${BAKTA_TAG}/environment_frozen.yml
 
 RUN micromamba install -y -n base -f /tmp/bakta-${BAKTA_TAG}/environment_frozen.yml \
     && pip install --no-cache-dir /tmp/bakta-${BAKTA_TAG} \
