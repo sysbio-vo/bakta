@@ -1,4 +1,4 @@
-__version__ = '1.12.0+pannotator.4'
+__version__ = '1.12.0+pannotator.5'
 __db_schema_version__ = 6
 
 import warnings
