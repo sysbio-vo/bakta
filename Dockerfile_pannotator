@@ -38,5 +38,5 @@ RUN sed -i '/- defaults/d' /tmp/bakta-${BAKTA_TAG}/environment_frozen.yml
 RUN micromamba install -y -n base -f /tmp/bakta-${BAKTA_TAG}/environment_frozen.yml \
     && pip install --no-cache-dir /tmp/bakta-${BAKTA_TAG} \
     && micromamba clean --all --yes \
-    && rm -rf /tmp/bakta-${BAKTA_TAG} \
+    && rm -rf /tmp/bakta-${BAKTA_TAG}
 
