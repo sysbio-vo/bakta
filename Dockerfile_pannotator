@@ -1,9 +1,6 @@
 FROM mambaorg/micromamba:2.0.2-ubuntu24.04
 # using base from https://github.com/mamba-org/micromamba-docker
 
-# SysBio's Bakta tag
-ARG BAKTA_TAG
-
 ENV PATH="/opt/conda/bin:${PATH}"
 
 LABEL org.opencontainers.image.authors="nepotlet@gmail.com"
@@ -21,12 +18,16 @@ RUN apt update \
 
 USER $MAMBA_USER
 
+# SysBio's Bakta tag
+ARG BAKTA_TAG
+
+WORKDIR /tmp
 # RUN wget --progress dot:giga -O /tmp/bakta-pannotator-${BAKTA_TAG}.tar.gz \
 #         https://github.com/sysbio-vo/bakta/archive/refs/tags/v${BAKTA_TAG}.tar.gz \
 #     && tar -xzf /tmp/bakta-pannotator-${BAKTA_TAG}.tar.gz -C /tmp \
-RUN git clone --branch ${BAKTA_TAG} --depth 1 https://github.com/sysbio-vo/bakta.git /tmp/bakta-${BAKTA_TAG} \
-    && TAG_SAFE=$(echo ${BAKTA_TAG} | tr '+' '-') \
-    && mv /tmp/bakta-${TAG_SAFE} /tmp/bakta-${BAKTA_TAG} \
+#     && TAG_SAFE=$(echo ${BAKTA_TAG} | tr '+' '-') \
+#     && mv /tmp/bakta-${TAG_SAFE} /tmp/bakta-${BAKTA_TAG} \
+RUN git clone --branch ${BAKTA_TAG} --depth 1 https://github.com/sysbio-vo/bakta.git ./bakta-${BAKTA_TAG} \
     && chown $MAMBA_USER:$MAMBA_USER /tmp/bakta-${BAKTA_TAG}/
 
 # exclude defaults channel from the YAML
