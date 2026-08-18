@@ -24,7 +24,7 @@ USER $MAMBA_USER
 # RUN wget --progress dot:giga -O /tmp/bakta-pannotator-${BAKTA_TAG}.tar.gz \
 #         https://github.com/sysbio-vo/bakta/archive/refs/tags/v${BAKTA_TAG}.tar.gz \
 #     && tar -xzf /tmp/bakta-pannotator-${BAKTA_TAG}.tar.gz -C /tmp \
-RUN git clone --branch v${BAKTA_TAG} --depth 1 https://github.com/sysbio-vo/bakta.git /tmp/bakta-${BAKTA_TAG} \
+RUN git clone --branch ${BAKTA_TAG} --depth 1 https://github.com/sysbio-vo/bakta.git /tmp/bakta-${BAKTA_TAG} \
     && TAG_SAFE=$(echo ${BAKTA_TAG} | tr '+' '-') \
     && mv /tmp/bakta-${TAG_SAFE} /tmp/bakta-${BAKTA_TAG} \
     && chown $MAMBA_USER:$MAMBA_USER /tmp/bakta-${BAKTA_TAG}/
