@@ -140,7 +140,7 @@ def main_bulk():
     if candidates_search_result is not None:
         bulk_candidates, seq_to_feature, sample_to_feature, seq_to_sample, candidate_to_sample_id = candidates_search_result
     else:
-        log.info(f'No novel pseudogene candidates were detected, returning CDS features as is')
+        log.info('No novel pseudogene candidates were detected, returning CDS features as is')
 
     candidates_search_end_time = datetime.now()
     candidates_detection_duration = (candidates_search_end_time - cfg.run_start).total_seconds()
@@ -154,7 +154,7 @@ def main_bulk():
     print(f'Pseudogene prediction finished in {int(pseudogene_predicition_duration / 60):01}:{int(pseudogene_predicition_duration % 60):02} [mm:ss].')
 
     # write updated Bakta dictionaries
-    print(f'Saving updated Bakta CDS features')
+    print('Saving updated Bakta CDS features')
     if manifest_path is not None:
         for input_filepath, updated_data in sample_to_data.items():
             filepath_basename = os.path.splitext(os.path.basename(input_filepath))[0]
@@ -350,7 +350,7 @@ def predict_pseudogenes_from_cdss(data: dict, cdss: list, log: logging.Logger) -
             print(f'\t\tverified: {len(pseudogenes)}')
             return pseudogenes
         else:
-            print(f'\tskip pseudogene detection with light db version')
+            print('\tskip pseudogene detection with light db version')
     return []
 
 
