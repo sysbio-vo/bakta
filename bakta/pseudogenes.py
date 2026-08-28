@@ -32,8 +32,8 @@ log = logging.getLogger('PSEUDOGENES')
 def main_bulk():
     # parse options and arguments
     parser = bu.init_parser(sub_command='_pseudo_bulk')
-    parser.add_argument('manifest', metavar='<input>', default=None, help='Manifest file with paths to pickled Bakta data objects with annotated CDSs to detect pseudogenes')
-    parser.add_argument('batch_pickle', metavar='<input>', default=None, help='Path to a single batch pickle file containing multiple Bakta data objects with annotated CDSs to detect pseudogenes')
+    parser.add_argument('--manifest', metavar='<input>', default=None, help='Manifest file with paths to pickled Bakta data objects with annotated CDSs to detect pseudogenes')
+    parser.add_argument('--batch_pickle', metavar='<input>', default=None, help='Path to a single batch pickle file containing multiple Bakta data objects with annotated CDSs to detect pseudogenes')
     
     arg_group_io = parser.add_argument_group('Input / Output')
     arg_group_io.add_argument('--db', '-d', action='store', default=None, help='Database path (default = <bakta_path>/db). Can also be provided as BAKTA_DB environment variable.')
