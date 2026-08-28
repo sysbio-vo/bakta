@@ -162,7 +162,8 @@ def main_bulk():
             print(f'\nExport pseudogene search results to: {output_pickle_path}')
             pickle.write_pickle(updated_data, output_pickle_path, cfg.serizalizer)
     elif batch_pickle_path is not None:
-        output_pickle_path = cfg.output_path.joinpath(f"{batch_pickle_path}.with_pseudogenes{cfg.SERIALIZERS[cfg.serizalizer].extension}")
+        filepath_basename = os.path.splitext(os.path.basename(batch_pickle_path))[0]
+        output_pickle_path = cfg.output_path.joinpath(f"{filepath_basename}.with_pseudogenes{cfg.SERIALIZERS[cfg.serizalizer].extension}")
         print(f'\nExport pseudogene search results to: {output_pickle_path}')
         pickle.write_pickle(sample_to_data, output_pickle_path, cfg.serizalizer)
 
