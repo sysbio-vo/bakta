@@ -1,9 +1,6 @@
 FROM mambaorg/micromamba:2.0.2-ubuntu24.04
 # using base from https://github.com/mamba-org/micromamba-docker
 
-# SysBio's Bakta tag
-ARG BAKTA_TAG
-
 ENV PATH="/opt/conda/bin:${PATH}"
 
 LABEL org.opencontainers.image.authors="nepotlet@gmail.com"
@@ -15,17 +12,24 @@ USER root
 
 ARG DEBIAN_FRONTEND=noninteractive
 RUN apt update \
-    && apt install -y --no-install-recommends wget tar ca-certificates procps \
+    && apt install -y --no-install-recommends wget tar ca-certificates procps git \
     && apt clean \
     && rm -rf /var/lib/apt/lists/*
 
 USER $MAMBA_USER
 
-RUN wget --progress dot:giga -O /tmp/bakta-pannotator-${BAKTA_TAG}.tar.gz \
-        https://github.com/sysbio-vo/bakta/archive/refs/tags/v${BAKTA_TAG}.tar.gz \
-    && tar -xzf /tmp/bakta-pannotator-${BAKTA_TAG}.tar.gz -C /tmp \
-    && TAG_SAFE=$(echo ${BAKTA_TAG} | tr '+' '-') \
-    && mv /tmp/bakta-${TAG_SAFE} /tmp/bakta-${BAKTA_TAG} \
+# SysBio's Bakta tag
+ARG BAKTA_TAG
+
+WORKDIR /tmp
+# RUN wget --progress dot:giga -O /tmp/bakta-pannotator-${BAKTA_TAG}.tar.gz \
+#         https://github.com/sysbio-vo/bakta/archive/refs/tags/v${BAKTA_TAG}.tar.gz \
+#     && tar -xzf /tmp/bakta-pannotator-${BAKTA_TAG}.tar.gz -C /tmp \
+#     && rm /tmp/bakta-pannotator-${BAKTA_TAG}.tar.gz \
+#     && TAG_SAFE=$(echo ${BAKTA_TAG} | tr '+' '-') \
+#     && mv /tmp/bakta-${TAG_SAFE} /tmp/bakta-${BAKTA_TAG} \
+
+RUN git clone --branch ${BAKTA_TAG} --depth 1 https://github.com/sysbio-vo/bakta.git ./bakta-${BAKTA_TAG} \
     && chown $MAMBA_USER:$MAMBA_USER /tmp/bakta-${BAKTA_TAG}/
 
 # exclude defaults channel from the YAML
@@ -34,5 +38,5 @@ RUN sed -i '/- defaults/d' /tmp/bakta-${BAKTA_TAG}/environment_frozen.yml
 RUN micromamba install -y -n base -f /tmp/bakta-${BAKTA_TAG}/environment_frozen.yml \
     && pip install --no-cache-dir /tmp/bakta-${BAKTA_TAG} \
     && micromamba clean --all --yes \
-    && rm -rf /tmp/bakta-${BAKTA_TAG} \
-    && rm /tmp/bakta-pannotator-${BAKTA_TAG}.tar.gz
+    && rm -rf /tmp/bakta-${BAKTA_TAG}
+

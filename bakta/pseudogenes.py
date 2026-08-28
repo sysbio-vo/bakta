@@ -32,7 +32,8 @@ log = logging.getLogger('PSEUDOGENES')
 def main_bulk():
     # parse options and arguments
     parser = bu.init_parser(sub_command='_pseudo_bulk')
-    parser.add_argument('manifest', metavar='<input>', help='Manifest file with paths to pickled Bakta data objects with annotated CDSs to detect pseudogenes')
+    parser.add_argument('--manifest', metavar='<input>', default=None, help='Manifest file with paths to pickled Bakta data objects with annotated CDSs to detect pseudogenes')
+    parser.add_argument('--batch_pickle', metavar='<input>', default=None, help='Path to a single batch pickle file containing multiple Bakta data objects with annotated CDSs to detect pseudogenes')
     
     arg_group_io = parser.add_argument_group('Input / Output')
     arg_group_io.add_argument('--db', '-d', action='store', default=None, help='Database path (default = <bakta_path>/db). Can also be provided as BAKTA_DB environment variable.')
@@ -61,15 +62,31 @@ def main_bulk():
     log.info('prefix=%s', cfg.prefix)
     log.info('output=%s', output_path)
 
-    try:
-        if(args.manifest == ''):
+    if (args.manifest is None and args.batch_pickle is None) or (args.manifest is not None and args.batch_pickle is not None):
+        raise ValueError('Either a manifest or batch pickle input files must be provided, but not both')
+    elif args.manifest is not None:
+        if (args.manifest == ''):
             raise ValueError('Path to a manifest must be non-empty')
-        manifest_path = Path(args.manifest).resolve()
-    except:
-        log.error('provided input CDS data file not valid! path=%s', args.manifest)
-        sys.exit(f'ERROR: input CDS data file ({args.manifest}) not valid!')
+        else:
+            try:
+                manifest_path = Path(args.manifest).resolve()
+                batch_pickle_path = None
+            except:
+                log.error('provided input CDS data file manifest not valid! path=%s', args.manifest)
+                sys.exit(f'ERROR: input CDS data file manifest ({args.manifest}) not valid!')
+    elif args.batch_pickle is not None:
+        if (args.batch_pickle == ''):
+            raise ValueError('Path to a batch pickle file must be non-empty')
+        else:
+            try:
+                batch_pickle_path = Path(args.batch_pickle).resolve()
+                manifest_path = None
+            except:
+                log.error('provided input CDS batch pickle not valid! path=%s', args.batch_pickle)
+                sys.exit(f'ERROR: input CDS batch pickle ({args.batch_pickle}) not valid!')
 
     log.info('manifest-path=%s', manifest_path)
+    log.info('batch-pickle-path=%s', batch_pickle_path)
 
     cfg.check_db_path(args)
     cfg.db_info = db.check(cfg.db_path)
@@ -86,7 +103,7 @@ def main_bulk():
     if(cfg.verbose):
         print(f'Bakta v{cfg.version}')
         print('Options and arguments:')
-        print(f'\tinput: {manifest_path}')
+        print(f'\tinput: {manifest_path if manifest_path is not None else batch_pickle_path}')
         print(f"\tdb: {cfg.db_path}, version {cfg.db_info['major']}.{cfg.db_info['minor']}")
         print(f'\toutput: {cfg.output_path}')
         if(cfg.force): print(f'\tforce: {cfg.force}')
@@ -103,14 +120,18 @@ def main_bulk():
     print('\nRead manifest file...')
 
     sample_to_data = {}
-    with open(manifest_path, 'r') as handle:
-        bakta_pickles = handle.readlines()
-        for bakta_pickle_path in bakta_pickles:
-            bakta_pickle_path = bakta_pickle_path.rstrip('\n')
-            print(f'\nExtracting pseudogene candidates from sample {bakta_pickle_path}...')
-            data = pickle.read_pickle(bakta_pickle_path)
-            sample_to_data[bakta_pickle_path] = data
-
+    if manifest_path is not None:
+        with open(manifest_path, 'r') as handle:
+            bakta_pickles = handle.readlines()
+            for bakta_pickle_path in bakta_pickles:
+                bakta_pickle_path = bakta_pickle_path.rstrip('\n')
+                print(f'\nExtracting pseudogene candidates from sample {bakta_pickle_path}...')
+                data = pickle.read_pickle(bakta_pickle_path)
+                sample_to_data[bakta_pickle_path] = data
+    elif batch_pickle_path is not None:
+        print(f'\nExtracting pseudogene candidates from batch pickle {batch_pickle_path}...')
+        sample_to_data = pickle.read_pickle(batch_pickle_path)
+    
     # get all hypotheticals and save intermediate files to tmp dir
     print('\nFind pseudogene candidates...')
 
@@ -119,7 +140,7 @@ def main_bulk():
     if candidates_search_result is not None:
         bulk_candidates, seq_to_feature, sample_to_feature, seq_to_sample, candidate_to_sample_id = candidates_search_result
     else:
-        log.info(f'No novel pseudogene candidates were detected, returning CDS features as is')
+        log.info('No novel pseudogene candidates were detected, returning CDS features as is')
 
     candidates_search_end_time = datetime.now()
     candidates_detection_duration = (candidates_search_end_time - cfg.run_start).total_seconds()
@@ -133,12 +154,19 @@ def main_bulk():
     print(f'Pseudogene prediction finished in {int(pseudogene_predicition_duration / 60):01}:{int(pseudogene_predicition_duration % 60):02} [mm:ss].')
 
     # write updated Bakta dictionaries
-    print(f'Saving updated Bakta CDS features')
-    for input_filepath, updated_data in sample_to_data.items():
-        filepath_basename = os.path.splitext(os.path.basename(input_filepath))[0]
+    print('Saving updated Bakta CDS features')
+    if manifest_path is not None:
+        for input_filepath, updated_data in sample_to_data.items():
+            filepath_basename = os.path.splitext(os.path.basename(input_filepath))[0]
+            output_pickle_path = cfg.output_path.joinpath(f"{filepath_basename}.with_pseudogenes{cfg.SERIALIZERS[cfg.serizalizer].extension}")
+            print(f'\nExport pseudogene search results to: {output_pickle_path}')
+            pickle.write_pickle(updated_data, output_pickle_path, cfg.serizalizer)
+    elif batch_pickle_path is not None:
+        filepath_basename = os.path.splitext(os.path.basename(batch_pickle_path))[0]
         output_pickle_path = cfg.output_path.joinpath(f"{filepath_basename}.with_pseudogenes{cfg.SERIALIZERS[cfg.serizalizer].extension}")
         print(f'\nExport pseudogene search results to: {output_pickle_path}')
-        pickle.write_pickle(updated_data, output_pickle_path, cfg.serizalizer)
+        pickle.write_pickle(sample_to_data, output_pickle_path, cfg.serizalizer)
+
 
     total_search_time = (cfg.run_end - cfg.run_start).total_seconds()
     print(f'Total elapsed time: {int(total_search_time / 60):01}:{int(total_search_time % 60):02} [mm:ss].')
@@ -323,7 +351,7 @@ def predict_pseudogenes_from_cdss(data: dict, cdss: list, log: logging.Logger) -
             print(f'\t\tverified: {len(pseudogenes)}')
             return pseudogenes
         else:
-            print(f'\tskip pseudogene detection with light db version')
+            print('\tskip pseudogene detection with light db version')
     return []
 
 
