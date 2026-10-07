@@ -118,23 +118,26 @@ def main_bulk():
 
     print('\nStart bulk pseudogene prediction...')
     print('\nRead manifest file...')
-
+    batch_of_batch_data = {}
     sample_to_data = {}
     if manifest_path is not None:
         with open(manifest_path, 'r') as handle:
             bakta_pickles = handle.readlines()
             for bakta_pickle_path in bakta_pickles:
                 bakta_pickle_path = bakta_pickle_path.rstrip('\n')
-                print(f'\nExtracting pseudogene candidates from sample {bakta_pickle_path}...')
+                print(f'\nExtracting pseudogene candidates from batch of {bakta_pickle_path}...')
                 data = pickle.read_pickle(bakta_pickle_path)
-                sample_to_data[bakta_pickle_path] = data
+                duplicates = sample_to_data.keys() & data.keys()
+                if duplicates:
+                    sys.exit(f'ERROR: sample(s) present in multiple batch pickles: {sorted(duplicates)}')
+                batch_of_batch_data[bakta_pickle_path] = data
+                sample_to_data.update(data)
     elif batch_pickle_path is not None:
         print(f'\nExtracting pseudogene candidates from batch pickle {batch_pickle_path}...')
         sample_to_data = pickle.read_pickle(batch_pickle_path)
     
     # get all hypotheticals and save intermediate files to tmp dir
     print('\nFind pseudogene candidates...')
-
     candidates_search_result = get_bulk_candidates(sample_to_data)
 
     if candidates_search_result is not None:
@@ -156,7 +159,7 @@ def main_bulk():
     # write updated Bakta dictionaries
     print('Saving updated Bakta CDS features')
     if manifest_path is not None:
-        for input_filepath, updated_data in sample_to_data.items():
+        for input_filepath, updated_data in batch_of_batch_data.items():
             filepath_basename = os.path.splitext(os.path.basename(input_filepath))[0]
             output_pickle_path = cfg.output_path.joinpath(f"{filepath_basename}.with_pseudogenes{cfg.SERIALIZERS[cfg.serizalizer].extension}")
             print(f'\nExport pseudogene search results to: {output_pickle_path}')
@@ -191,7 +194,6 @@ def get_bulk_candidates(sample_to_data: dict[str, object]):
 
     # get all hypotheticals
     for bakta_pickle_path, data in sample_to_data.items():
-
         for feat in data['features']:
 
             # if hypothetical protein was processed in previous runs, 
