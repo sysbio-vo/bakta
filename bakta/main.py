@@ -785,6 +785,10 @@ def write_sorf_extra_outputs(data: dict, features_by_sequence: dict):
     gff3_path = cfg.output_path.joinpath(f'{cfg.prefix}.sorf-extra.gff3')
     gff.write_features(data, features_by_sequence, gff3_path)
 
+    print('\tJSON...')
+    json_path = cfg.output_path.joinpath(f'{cfg.prefix}.json')
+    json.write_json(data, features_by_sequence, json_path)
+
     print('\tpickle...')
     pickle_path = cfg.output_path.joinpath(f"{cfg.prefix}.sorf-extra{cfg.SERIALIZERS[cfg.serizalizer].extension}")
     pickle.write_pickle(data, pickle_path, cfg.serizalizer)
