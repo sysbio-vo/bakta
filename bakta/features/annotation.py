@@ -43,6 +43,16 @@ def combine_annotation(feature: dict):
     if(bc.PSEUDOGENE in feature):
         pseudogene_psc = feature[bc.PSEUDOGENE].get('psc', None)
         pseudogene_pscc = feature[bc.PSEUDOGENE].get('pscc', None)
+
+
+    pfams_ids = None
+    if "pfams" in feature:
+        pfams_hits = feature["pfams"]
+
+        # TODO: clarify the neccessity of this condition
+        if len(pfams_hits) > 0:
+            pfams_ids = [pfam_hit["id"] for pfam_hit in pfams_hits]
+
     ups = feature.get('ups', None)
     ips = feature.get('ips', None)
     psc = feature.get('psc', None)
@@ -146,6 +156,10 @@ def combine_annotation(feature: dict):
         mark_as_hypothetical(feature)
 
     feature['db_xrefs'] = sorted(list(db_xrefs))
+
+    if pfams_ids is not None:
+        for pfam_id in pfams_ids:
+            feature['db_xrefs'].append(f"PFAM:{pfam_id}")
 
 
 def detect_feature_overlaps(data: dict):
