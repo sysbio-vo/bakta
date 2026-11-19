@@ -44,6 +44,7 @@ def main():
     arg_group_annotation = parser.add_argument_group('Annotation')
     arg_group_annotation.add_argument('--proteins', action='store', default=None, dest='proteins', help='Fasta file of trusted protein sequences')
     arg_group_annotation.add_argument('--hmms', action='store', default=None, dest='hmms', help='HMM file of trusted hidden markov models in HMMER format')
+    arg_group_annotation.add_argument('--compliant', action='store_true', help='Force Genbank/ENA/DDJB compliance')
     
     arg_group_general = parser.add_argument_group('General')
     arg_group_general.add_argument('--help', '-h', action='help', help='Show this help message and exit')
@@ -105,6 +106,9 @@ def main():
         except:
             log.error('provided HMM file not valid! path=%s', args.hmms)
             sys.exit(f'ERROR: HMM file ({args.hmms}) not valid!')
+
+    cfg.compliant = args.compliant
+    log.info('compliant=%s', cfg.compliant)
     
     bu.test_dependencies()
     if(cfg.verbose):
