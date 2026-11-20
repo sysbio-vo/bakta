@@ -778,7 +778,7 @@ def write_rna_only_outputs(data: dict, rna_features: list):
     json.write_json(data, rna_features, json_path)'''
 
 
-def write_sorf_extra_outputs(data: dict, features_by_sequence: dict):
+def write_sorf_extra_outputs(data: dict, features: list, features_by_sequence: dict):
     print(f'\nExport sORF + extra results to: {cfg.output_path}')
 
     print('\tGFF3...')
@@ -788,6 +788,11 @@ def write_sorf_extra_outputs(data: dict, features_by_sequence: dict):
     print('\tpickle...')
     pickle_path = cfg.output_path.joinpath(f"{cfg.prefix}.sorf-extra{cfg.SERIALIZERS[cfg.serizalizer].extension}")
     pickle.write_pickle(data, pickle_path, cfg.serizalizer)
+
+    # JSON last: write_json pops aa_digest from CDS/sORF features in place
+    print('\tJSON...')
+    json_path = cfg.output_path.joinpath(f'{cfg.prefix}.json')
+    json.write_json(data, features, json_path)
 
 
 def run_pipeline(args):
@@ -871,7 +876,7 @@ def run_pipeline(args):
         improve_annotations(features)
 
         cdss = [feat for feat in data['features'] if feat['type'] == bc.FEATURE_CDS]
-        write_sorf_extra_outputs(data, features_by_sequence)
+        write_sorf_extra_outputs(data, features, features_by_sequence)
         return
 
     ############################################################################
